@@ -1,0 +1,734 @@
+import React, { useState, useCallback, useEffect, useRef } from 'react';
+import { useDropzone } from 'react-dropzone';
+import { motion, AnimatePresence } from 'motion/react';
+import { 
+  FileUp, ArrowRight, Download, RefreshCw, 
+  AlertCircle, CheckCircle2, Eye, Sparkles, Image as ImageIcon, 
+  FileText, Database, X, File, Layers, Plus
+} from 'lucide-react';
+import { cn } from './lib/utils';
+import { SUPPORTED_FORMATS, getExtension, convertFile, zipFiles } from './lib/converters';
+import { renderAsync } from 'docx-preview';
+import { ErrorBoundary } from './components/ErrorBoundary';
+import { Prism as SyntaxHighlighter } from 'react-syntax-highlighter';
+import { vscDarkPlus } from 'react-syntax-highlighter/dist/esm/styles/prism';
+
+function FilePreview({ url, format }: { url: string, format: string }) {
+  const [content, setContent] = useState<string | null>(null);
+  const containerRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    let isMounted = true;
+
+    const loadPreview = async () => {
+      try {
+        if (['png', 'jpg', 'jpeg', 'webp', 'bmp', 'gif'].includes(format)) {
+          setContent('image');
+        } else if (format === 'pdf') {
+          setContent('pdf');
+        } else if (format === 'docx') {
+          setContent('docx');
+          if (containerRef.current) {
+            const response = await fetch(url);
+            const blob = await response.blob();
+            await renderAsync(blob, containerRef.current, containerRef.current, {
+              inWrapper: true,
+              ignoreWidth: false,
+              ignoreHeight: false,
+              ignoreFonts: false,
+              breakPages: true,
+            });
+          }
+        } else if (['txt', 'csv', 'json', 'md', 'html', 'xml', 'yaml'].includes(format)) {
+          const response = await fetch(url);
+          const text = await response.text();
+          if (isMounted) setContent(text);
+        }
+      } catch (err) {
+        console.error('Preview error:', err);
+        if (isMounted) setContent('Error loading preview');
+      }
+    };
+
+    loadPreview();
+    return () => { isMounted = false; };
+  }, [url, format]);
+
+  if (content === 'image') {
+    return <img src={url} alt="Preview" className="max-w-full h-auto mx-auto rounded-2xl shadow-[0_8px_30px_rgba(0,0,0,0.5)] border border-white/20" />;
+  }
+
+  if (content === 'pdf') {
+    return <iframe src={`${url}#toolbar=0`} className="w-full h-[600px] rounded-2xl border border-white/20 shadow-[0_8px_30px_rgba(0,0,0,0.5)] bg-black/60 backdrop-blur-xl" title="PDF Preview" />;
+  }
+
+  if (content === 'docx') {
+    return <div ref={containerRef} className="w-full min-h-[600px] bg-white text-black backdrop-blur-xl rounded-2xl overflow-auto docx-preview-container border border-white/20 shadow-[0_8px_30px_rgba(0,0,0,0.5)] p-8" />;
+  }
+
+  if (['txt', 'csv', 'json', 'md', 'html', 'xml', 'yaml'].includes(format)) {
+    let language = 'text';
+    if (format === 'json') language = 'json';
+    if (format === 'csv') language = 'csv';
+    if (format === 'md') language = 'markdown';
+    if (format === 'html') language = 'html';
+    if (format === 'xml') language = 'xml';
+    if (format === 'yaml') language = 'yaml';
+
+    return (
+      <div className="w-full max-h-[600px] overflow-auto rounded-2xl shadow-[0_8px_30px_rgba(0,0,0,0.5)] border border-white/20">
+        <SyntaxHighlighter
+          language={language}
+          style={vscDarkPlus}
+          customStyle={{ margin: 0, padding: '1.5rem', minHeight: '100%', background: 'rgba(15, 23, 42, 0.9)' }}
+          wrapLines={true}
+          wrapLongLines={true}
+        >
+          {content || 'Loading preview...'}
+        </SyntaxHighlighter>
+      </div>
+    );
+  }
+
+  return (
+    <div className="w-full max-h-[600px] overflow-auto bg-[#0f172a]/90 backdrop-blur-2xl text-indigo-100 p-6 rounded-2xl font-mono text-sm whitespace-pre-wrap shadow-[0_8px_30px_rgba(0,0,0,0.5)] border border-white/20">
+      {content || 'Loading preview...'}
+    </div>
+  );
+}
+
+const CATEGORIES = [
+  { 
+    id: 'universal', 
+    label: 'Universal', 
+    icon: Sparkles, 
+    accept: undefined, 
+    description: 'Auto-detects any supported file',
+    color: 'text-cyan-300',
+    bg: 'bg-cyan-500/20',
+    border: 'border-cyan-400/50'
+  },
+  { 
+    id: 'images', 
+    label: 'Images', 
+    icon: ImageIcon, 
+    accept: {'image/*': ['.png', '.jpg', '.jpeg', '.webp', '.bmp', '.gif', '.svg', '.ico']}, 
+    description: 'Convert between image formats',
+    color: 'text-pink-300',
+    bg: 'bg-pink-500/20',
+    border: 'border-pink-400/50'
+  },
+  { 
+    id: 'documents', 
+    label: 'Documents', 
+    icon: FileText, 
+    accept: {
+      'application/pdf': ['.pdf'], 
+      'application/vnd.openxmlformats-officedocument.wordprocessingml.document': ['.docx'], 
+      'text/plain': ['.txt'], 
+      'text/markdown': ['.md'],
+      'text/html': ['.html']
+    }, 
+    description: 'PDF, Word, TXT, HTML, Markdown',
+    color: 'text-indigo-300',
+    bg: 'bg-indigo-500/20',
+    border: 'border-indigo-400/50'
+  },
+  { 
+    id: 'data', 
+    label: 'Data', 
+    icon: Database, 
+    accept: {
+      'application/json': ['.json'], 
+      'text/csv': ['.csv'], 
+      'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet': ['.xlsx'],
+      'application/xml': ['.xml'],
+      'text/yaml': ['.yaml', '.yml']
+    }, 
+    description: 'JSON, CSV, Excel, XML, YAML',
+    color: 'text-emerald-300',
+    bg: 'bg-emerald-500/20',
+    border: 'border-emerald-400/50'
+  }
+];
+
+const getFormatPills = (catId: string) => {
+  switch(catId) {
+    case 'images': return ['PNG', 'JPG', 'WEBP', 'BMP', 'GIF', 'SVG', 'ICO'];
+    case 'documents': return ['PDF', 'DOCX', 'TXT', 'MD', 'HTML'];
+    case 'data': return ['JSON', 'CSV', 'XLSX', 'XML', 'YAML'];
+    default: return ['PDF', 'JPG', 'DOCX', 'JSON', 'CSV', '...'];
+  }
+};
+
+export type FileItem = {
+  id: string;
+  file: File;
+  targetFormat: string;
+  status: 'idle' | 'converting' | 'success' | 'error';
+  convertedUrl?: string;
+  convertedName?: string;
+  error?: string;
+  showPreview?: boolean;
+};
+
+export default function App() {
+  const [activeCategory, setActiveCategory] = useState('universal');
+  const [files, setFiles] = useState<FileItem[]>([]);
+  const [error, setError] = useState<string | null>(null);
+  const [useOcrForPdf, setUseOcrForPdf] = useState(false);
+  const [isConvertingAny, setIsConvertingAny] = useState(false);
+  const [isZipping, setIsZipping] = useState(false);
+
+  const handleConvert = async () => {
+    if (files.length === 0) return;
+
+    setIsConvertingAny(true);
+    setError(null);
+
+    const updatedFiles = [...files];
+
+    await Promise.all(updatedFiles.map(async (fileItem, index) => {
+      if (fileItem.status === 'success' || !fileItem.targetFormat || fileItem.status === 'converting') return;
+
+      // Optimistic update
+      setFiles(current => {
+        const next = [...current];
+        if (next[index] && next[index].status === 'idle') {
+            next[index] = { ...next[index], status: 'converting', error: undefined };
+        }
+        return next;
+      });
+
+      try {
+        const { blob, filename } = await convertFile(fileItem.file, fileItem.targetFormat, { useOcr: useOcrForPdf });
+        const url = URL.createObjectURL(blob);
+        
+        setFiles(current => {
+          const next = [...current];
+          if (next[index]) {
+            next[index] = { ...next[index], status: 'success', convertedUrl: url, convertedName: filename, _blob: blob } as any;
+          }
+          return next;
+        });
+      } catch (err) {
+        setFiles(current => {
+          const next = [...current];
+          if (next[index]) {
+            next[index] = { ...next[index], status: 'error', error: err instanceof Error ? err.message : 'Unknown error' };
+          }
+          return next;
+        });
+      }
+    }));
+
+    setIsConvertingAny(false);
+  };
+
+
+  const activeCatData = CATEGORIES.find(c => c.id === activeCategory)!;
+
+  const onDrop = useCallback((acceptedFiles: File[], rejectedFiles: any[]) => {
+    if (rejectedFiles.length > 0) {
+      setError(`Some files were skipped. Maybe unsupported in ${activeCatData.label} mode.`);
+    }
+    
+    const newFiles: FileItem[] = [];
+    for (const f of acceptedFiles) {
+      const ext = getExtension(f.name);
+      if (SUPPORTED_FORMATS[ext]) {
+        newFiles.push({
+          id: Math.random().toString(36).substring(7),
+          file: f,
+          targetFormat: SUPPORTED_FORMATS[ext][0] || '',
+          status: 'idle'
+        });
+      }
+    }
+    
+    if (newFiles.length > 0) {
+      setFiles(prev => [...prev, ...newFiles]);
+      setError(null);
+    }
+  }, [activeCatData.label]);
+
+  const { getRootProps, getInputProps, isDragActive, isDragAccept, isDragReject } = useDropzone({
+    onDrop,
+    accept: activeCatData.accept,
+    maxFiles: 0, // no limit
+    multiple: true,
+  });
+
+
+  const handleDownloadAll = async () => {
+    const successFiles: { name: string, blob: Blob }[] = [];
+    files.forEach(f => {
+      if (f.status === 'success' && f.convertedName && (f as any)._blob) {
+        successFiles.push({ name: f.convertedName, blob: (f as any)._blob });
+      }
+    });
+
+    if (successFiles.length === 0) return;
+
+    setIsZipping(true);
+    try {
+      const zipBlob = await zipFiles(successFiles);
+      const url = URL.createObjectURL(zipBlob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `NexusConvert_Files_${Date.now()}.zip`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      setTimeout(() => URL.revokeObjectURL(url), 100);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to zip files');
+    } finally {
+      setIsZipping(false);
+    }
+  };
+
+  const handleReset = () => {
+    files.forEach(f => {
+      if (f.convertedUrl) URL.revokeObjectURL(f.convertedUrl);
+    });
+    setFiles([]);
+    setError(null);
+    setUseOcrForPdf(false);
+  };
+
+  const removeFile = (id: string) => {
+    setFiles(prev => {
+      const fileToRm = prev.find(f => f.id === id);
+      if (fileToRm?.convertedUrl) {
+        URL.revokeObjectURL(fileToRm.convertedUrl);
+      }
+      return prev.filter(f => f.id !== id);
+    });
+  };
+
+  const updateFormat = (id: string, format: string) => {
+    setFiles(prev => prev.map(f => f.id === id ? { ...f, targetFormat: format, status: 'idle', convertedUrl: undefined } : f));
+  };
+  
+  const togglePreview = (id: string) => {
+    setFiles(prev => prev.map(f => f.id === id ? { ...f, showPreview: !f.showPreview } : f));
+  };
+
+  const formatBytes = (bytes: number, decimals = 2) => {
+    if (!+bytes) return '0 Bytes';
+    const k = 1024;
+    const dm = decimals < 0 ? 0 : decimals;
+    const sizes = ['Bytes', 'KB', 'MB', 'GB', 'TB', 'PB', 'EB', 'ZB', 'YB'];
+    const i = Math.floor(Math.log(bytes) / Math.log(k));
+    return `${parseFloat((bytes / Math.pow(k, i)).toFixed(dm))} ${sizes[i]}`;
+  };
+
+  return (
+    <div className="min-h-screen bg-[#070b19] text-indigo-50 font-sans selection:bg-cyan-500/40 flex flex-col relative overflow-hidden">
+      
+      {/* Anime Sky Background */}
+      <div className="fixed inset-0 z-0 pointer-events-none">
+        {/* Base deep sky */}
+        <div className="absolute inset-0 bg-gradient-to-b from-[#091128] via-[#163365] to-[#147998]" />
+        {/* Glow at horizon (Sunrise/Sunset) */}
+        <div className="absolute bottom-0 w-full h-[50%] bg-gradient-to-t from-[#ff8c78]/40 via-[#ffba92]/10 to-transparent" />
+        {/* Ocean body */}
+        <div className="absolute bottom-0 w-full h-[25%] bg-gradient-to-b from-[#0e5170] to-[#041a29] border-t border-cyan-400/30" />
+        
+        {/* Atmospheric Clouds / Orbs */}
+        <div className="absolute top-[10%] left-[20%] w-[50%] h-[30%] bg-cyan-400/20 blur-[120px] rounded-full mix-blend-screen" />
+        <div className="absolute top-[30%] right-[10%] w-[40%] h-[40%] bg-indigo-500/30 blur-[130px] rounded-full mix-blend-screen" />
+        <div className="absolute bottom-[20%] left-[-10%] w-[40%] h-[20%] bg-[#ff9a76]/20 blur-[100px] rounded-full mix-blend-screen" />
+      </div>
+
+      {/* Navbar */}
+      <header className="bg-[#0f172a]/40 backdrop-blur-xl border-b border-white/10 sticky top-0 z-50">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between">
+          <div className="flex items-center gap-3">
+            <div className="bg-gradient-to-br from-cyan-400 to-indigo-500 p-2 rounded-xl shadow-[0_0_15px_rgba(34,211,238,0.4)]">
+              <Layers className="w-5 h-5 text-white" />
+            </div>
+            <h1 className="text-xl font-bold tracking-tight text-white drop-shadow-[0_2px_4px_rgba(0,0,0,0.5)]">
+              NexusConvert
+            </h1>
+          </div>
+          <a 
+            href="https://github.com" 
+            target="_blank" 
+            rel="noreferrer"
+            className="text-sm font-bold text-indigo-100 hover:text-white transition-colors bg-white/5 hover:bg-white/10 px-4 py-2 rounded-full border border-white/10 shadow-[0_4px_12px_rgba(0,0,0,0.2)]"
+          >
+            Documentation
+          </a>
+        </div>
+      </header>
+
+      <main className="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-8 md:py-12 flex flex-col lg:flex-row gap-8 relative z-10">
+        
+        {/* Sidebar Categories */}
+        <aside className="w-full lg:w-72 shrink-0">
+          <div className="sticky top-24 space-y-6">
+            <div className="bg-[#0f172a]/40 backdrop-blur-xl border border-white/10 rounded-[2rem] p-4 shadow-[0_8px_32px_rgba(0,0,0,0.4)]">
+              <h2 className="text-xs font-bold text-indigo-300/80 uppercase tracking-wider mb-4 px-3">Conversion Types</h2>
+              <div className="space-y-2">
+                {CATEGORIES.map(cat => (
+                  <button
+                    key={cat.id}
+                    onClick={() => { setActiveCategory(cat.id); handleReset(); }}
+                    className={cn(
+                      "w-full flex items-center gap-3 px-4 py-3.5 rounded-2xl text-left transition-all duration-300",
+                      activeCategory === cat.id 
+                        ? "bg-white/10 shadow-[0_4px_20px_rgba(0,0,0,0.2)] border border-white/20 scale-[1.02]" 
+                        : "hover:bg-white/5 text-indigo-200 border border-transparent"
+                    )}
+                  >
+                    <div className={cn("p-2.5 rounded-xl transition-colors shadow-inner", activeCategory === cat.id ? cat.bg : "bg-white/5")}>
+                      <cat.icon className={cn("w-5 h-5", activeCategory === cat.id ? cat.color : "text-indigo-400")} />
+                    </div>
+                    <div>
+                      <div className={cn("font-bold text-sm", activeCategory === cat.id ? "text-white" : "text-indigo-100")}>{cat.label}</div>
+                      <div className="text-xs font-medium text-indigo-300/70 mt-0.5">{cat.description}</div>
+                    </div>
+                  </button>
+                ))}
+              </div>
+            </div>
+          </div>
+        </aside>
+
+        {/* Main Content Area */}
+        <div className="flex-1 min-w-0">
+          <div className="bg-[#0f172a]/50 backdrop-blur-2xl rounded-[2.5rem] shadow-[0_8px_32px_rgba(0,0,0,0.5)] border border-white/10 overflow-hidden min-h-[600px] flex flex-col relative">
+            
+            <div className="relative flex-1 p-6 md:p-10 flex flex-col">
+              <ErrorBoundary>
+                <AnimatePresence mode="wait">
+                {files.length === 0 ? (
+                  <motion.div
+                    key="upload"
+                    initial={{ opacity: 0, y: 5 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    exit={{ opacity: 0, y: -5 }}
+                    transition={{ duration: 0.2 }}
+                    className="flex-1 flex flex-col"
+                  >
+                          <div
+                            {...getRootProps()}
+                            className={cn(
+                              "flex-1 border-2 border-dashed rounded-[2rem] p-8 md:p-12 text-center cursor-pointer transition-all duration-300 ease-out flex flex-col items-center justify-center min-h-[400px] shadow-[inset_0_2px_20px_rgba(0,0,0,0.3)]",
+                              isDragReject ? "border-red-400 bg-red-900/20 scale-[0.99]" :
+                              isDragAccept ? "border-cyan-400 bg-cyan-900/20 scale-[0.99]" :
+                              isDragActive 
+                                ? `${activeCatData.border} ${activeCatData.bg} scale-[0.99] border-opacity-100` 
+                                : "border-white/20 bg-white/5 hover:bg-white/10 hover:border-white/40"
+                            )}
+                          >
+                            <input {...getInputProps()} />
+                            <motion.div 
+                              animate={isDragActive ? { scale: [1, 1.1, 1] } : { y: [0, -5, 0] }}
+                              transition={isDragActive ? { duration: 1, repeat: Infinity } : { duration: 4, repeat: Infinity, ease: "easeInOut" }}
+                              className={cn(
+                              "w-24 h-24 mb-6 rounded-3xl flex items-center justify-center shadow-[0_10px_30px_rgba(0,0,0,0.3)] border border-white/20 backdrop-blur-md relative", 
+                              isDragAccept ? "bg-cyan-500/30 border-cyan-400/50" :
+                              isDragReject ? "bg-red-500/30 border-red-400/50" :
+                              "bg-[#1e293b]/60"
+                            )}>
+                              {isDragActive && !isDragReject && (
+                                <motion.div className="absolute inset-0 rounded-3xl bg-cyan-400/20 blur-xl" animate={{ opacity: [0.5, 1, 0.5] }} transition={{ duration: 1.5, repeat: Infinity }} />
+                              )}
+                              {isDragReject ? (
+                                <AlertCircle className="w-12 h-12 text-red-400 drop-shadow-[0_0_10px_rgba(248,113,113,0.8)] relative z-10" />
+                              ) : isDragAccept ? (
+                                <CheckCircle2 className="w-12 h-12 text-cyan-400 drop-shadow-[0_0_10px_rgba(34,211,238,0.8)] relative z-10" />
+                              ) : (
+                                <activeCatData.icon className={cn("w-12 h-12 relative z-10", activeCatData.color, "drop-shadow-[0_2px_10px_rgba(0,0,0,0.5)]")} />
+                              )}
+                            </motion.div>
+                            <h3 className={cn(
+                              "text-3xl font-bold mb-4 transition-colors duration-300 drop-shadow-md",
+                              isDragReject ? "text-red-400" :
+                              isDragAccept ? "text-cyan-400" :
+                              "text-white"
+                            )}>
+                              {isDragReject ? "File type not supported!" : 
+                               isDragAccept ? "Drop to upload!" : 
+                               isDragActive ? "Drop it like it's hot!" : 
+                               `Upload ${activeCatData.label}`}
+                            </h3>
+                            <p className={cn(
+                              "font-medium max-w-sm mx-auto mb-8 transition-colors duration-300 text-base drop-shadow-sm",
+                              isDragReject ? "text-red-300" :
+                              isDragAccept ? "text-cyan-300" :
+                              "text-indigo-200"
+                            )}>
+                              {isDragReject ? `Please select a valid file for ${activeCatData.label} mode.` :
+                               isDragAccept ? "Release to start conversion." :
+                               "Drag and drop your files here, or click to browse from your computer."}
+                            </p>
+                            
+                            {/* Format pills */}
+                            <div className="flex flex-wrap justify-center gap-2">
+                              {getFormatPills(activeCategory).map(fmt => (
+                                <span key={fmt} className="px-4 py-1.5 bg-black/40 backdrop-blur-md border border-white/10 rounded-xl text-xs font-bold text-indigo-100 shadow-[0_2px_8px_rgba(0,0,0,0.4)]">
+                                  {fmt}
+                                </span>
+                              ))}
+                            </div>
+                          </div>
+                  </motion.div>
+                ) : (
+                  <motion.div
+                    key="config"
+                    initial={{ opacity: 0, y: 5 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    className="flex-1 flex flex-col"
+                  >
+                          <div className="flex justify-between items-center mb-6">
+                            <h3 className="text-xl font-bold text-white drop-shadow-md flex items-center">
+                              <Layers className="w-6 h-6 mr-3 text-cyan-400 drop-shadow-[0_0_8px_rgba(34,211,238,0.5)]" />
+                              Your Files ({files.length})
+                            </h3>
+                            <div className="flex gap-3">
+                              <div {...getRootProps()} className="cursor-pointer">
+                                <input {...getInputProps()} />
+                                <button className="px-5 py-3 bg-white/10 hover:bg-white/20 border border-white/20 rounded-xl text-sm font-bold text-white shadow-lg transition-all flex items-center gap-2">
+                                  <Plus className="w-4 h-4" /> Add Files
+                                </button>
+                              </div>
+                              <button onClick={handleReset} className="px-5 py-3 bg-red-500/20 hover:bg-red-500/30 border border-red-500/30 text-red-300 rounded-xl text-sm font-bold shadow-lg transition-all flex items-center gap-2">
+                                Clear All
+                              </button>
+                            </div>
+                          </div>
+                          
+                          <div className="space-y-4 mb-8 max-h-[50vh] overflow-y-auto pr-2 custom-scrollbar">
+                            <AnimatePresence>
+                              {files.map(fileItem => {
+                                const ext = getExtension(fileItem.file.name);
+                                const available = SUPPORTED_FORMATS[ext] || [];
+                                
+                                return (
+                                  <motion.div
+                                    layout
+                                    variants={{
+                                      hidden: { opacity: 0, y: 20, scale: 0.95 },
+                                      visible: { opacity: 1, y: 0, scale: 1 }
+                                    }}
+                                    initial="hidden"
+                                    animate="visible"
+                                    exit={{ opacity: 0, scale: 0.95, transition: { duration: 0.2 } }}
+                                    transition={{ type: "spring", stiffness: 300, damping: 24 }}
+                                    key={fileItem.id}
+                                    className={cn(
+                                      "relative backdrop-blur-xl rounded-2xl border overflow-hidden transition-all duration-500",
+                                      fileItem.status === 'converting' ? "bg-[#1e293b]/80 border-cyan-400/50 shadow-[0_0_20px_rgba(34,211,238,0.15)]" :
+                                      fileItem.status === 'success' ? "bg-[#0f1b33]/60 border-emerald-500/30 shadow-[0_8px_20px_rgba(0,0,0,0.3)]" :
+                                      fileItem.status === 'error' ? "bg-red-950/20 border-red-500/30 shadow-[0_8px_20px_rgba(0,0,0,0.3)]" :
+                                      "bg-[#1e293b]/60 border-white/10 shadow-[0_8px_20px_rgba(0,0,0,0.3)]"
+                                    )}
+                                  >
+                                    {/* Sweeping progress gradient for converting items */}
+                                    {fileItem.status === 'converting' && (
+                                      <motion.div
+                                        className="absolute inset-0 bg-gradient-to-r from-transparent via-cyan-400/10 to-transparent skew-x-[-20deg]"
+                                        initial={{ x: '-150%' }}
+                                        animate={{ x: '150%' }}
+                                        transition={{ duration: 1.5, repeat: Infinity, ease: 'linear' }}
+                                      />
+                                    )}
+                                    {/* Success Glow effect */}
+                                    {fileItem.status === 'success' && (
+                                       <motion.div
+                                        className="absolute inset-0 bg-emerald-400/10"
+                                        initial={{ opacity: 1 }}
+                                        animate={{ opacity: 0 }}
+                                        transition={{ duration: 1 }}
+                                       />
+                                    )}
+                                    
+                                    <div className="flex flex-col sm:flex-row items-center p-5 gap-4 relative z-10">
+                                      <motion.div 
+                                        animate={fileItem.status === 'converting' ? { scale: [1, 1.05, 1] } : {}}
+                                        transition={{ duration: 1, repeat: Infinity }}
+                                        className={cn("w-14 h-14 rounded-2xl flex items-center justify-center shrink-0 shadow-[inset_0_2px_10px_rgba(0,0,0,0.5)] border border-white/10", activeCatData.bg)}
+                                      >
+                                         <File className={cn("w-7 h-7 drop-shadow-md", activeCatData.color)} />
+                                      </motion.div>
+                                      
+                                      <div className="flex-1 min-w-0 w-full">
+                                        <p className="text-base font-bold text-indigo-50 truncate drop-shadow-sm">
+                                          {fileItem.file.name}
+                                        </p>
+                                        <div className="flex flex-wrap items-center gap-3 mt-1 text-sm">
+                                          <span className="font-medium text-indigo-300/80">
+                                            {formatBytes(fileItem.file.size)} • {ext.toUpperCase()}
+                                          </span>
+                                          {fileItem.status === 'converting' && (
+                                            <span className="flex items-center text-cyan-400 font-bold text-xs"><RefreshCw className="w-3 h-3 mr-1 animate-spin" /> Converting</span>
+                                          )}
+                                          {fileItem.status === 'success' && (
+                                            <span className="flex items-center text-emerald-400 font-bold text-xs"><CheckCircle2 className="w-3 h-3 mr-1 drop-shadow-[0_0_5px_rgba(52,211,153,0.5)]" /> Success</span>
+                                          )}
+                                          {fileItem.status === 'error' && (
+                                            <span className="flex items-center text-red-400 font-bold text-xs truncate max-w-[200px]"><AlertCircle className="w-3 h-3 mr-1" /> {fileItem.error}</span>
+                                          )}
+                                        </div>
+                                      </div>
+                                      
+                                      <div className="flex items-center gap-3 w-full sm:w-auto mt-4 sm:mt-0 justify-end">
+                                        {fileItem.status === 'idle' || fileItem.status === 'error' ? (
+                                          <div className="flex items-center gap-3 bg-black/40 p-1.5 rounded-xl border border-white/10 shadow-inner">
+                                            <span className="text-xs font-bold text-indigo-400 uppercase px-2 drop-shadow-sm">To</span>
+                                            <select
+                                              value={fileItem.targetFormat}
+                                              onChange={(e) => updateFormat(fileItem.id, e.target.value)}
+                                              className="bg-transparent font-bold text-white focus:outline-none cursor-pointer text-sm [&>option]:bg-slate-800"
+                                            >
+                                              {available.map(fmt => (
+                                                <option key={fmt} value={fmt}>{fmt.toUpperCase()}</option>
+                                              ))}
+                                            </select>
+                                          </div>
+                                        ) : fileItem.status === 'success' && fileItem.convertedUrl ? (
+                                          <div className="flex gap-2">
+                                            <button
+                                              onClick={() => togglePreview(fileItem.id)}
+                                              className={cn("p-2.5 rounded-xl font-bold transition-all shadow-lg border", fileItem.showPreview ? "bg-cyan-500/20 text-cyan-300 border-cyan-400/50" : "bg-white/10 hover:bg-white/20 text-indigo-200 border-white/10")}
+                                              title="Preview"
+                                            >
+                                              <Eye className="w-5 h-5" />
+                                            </button>
+                                            <a
+                                              href={fileItem.convertedUrl}
+                                              download={fileItem.convertedName}
+                                              className="p-2.5 bg-gradient-to-r from-cyan-500 to-indigo-500 hover:from-cyan-400 hover:to-indigo-400 text-white rounded-xl font-bold transition-all shadow-[0_4px_15px_rgba(34,211,238,0.3)] hover:-translate-y-0.5 border border-white/20"
+                                              title="Download"
+                                            >
+                                              <Download className="w-5 h-5" />
+                                            </a>
+                                          </div>
+                                        ) : null}
+                                        
+                                        <button
+                                          onClick={() => removeFile(fileItem.id)}
+                                          className="p-2.5 text-indigo-400/50 hover:text-red-400 hover:bg-white/10 rounded-xl transition-all"
+                                          disabled={isConvertingAny}
+                                        >
+                                          <X className="w-5 h-5" />
+                                        </button>
+                                      </div>
+                                    </div>
+                                    
+                                    <AnimatePresence>
+                                      {fileItem.showPreview && fileItem.convertedUrl && fileItem.status === 'success' && (
+                                        <motion.div
+                                          initial={{ height: 0, opacity: 0 }}
+                                          animate={{ height: 'auto', opacity: 1 }}
+                                          exit={{ height: 0, opacity: 0 }}
+                                          className="border-t border-white/10 bg-black/30 p-6"
+                                        >
+                                          <div className="mb-4 flex items-center justify-between">
+                                            <h4 className="text-sm font-bold text-indigo-200 drop-shadow-sm">Preview: {fileItem.convertedName}</h4>
+                                          </div>
+                                          <FilePreview url={fileItem.convertedUrl} format={fileItem.targetFormat} />
+                                        </motion.div>
+                                      )}
+                                    </AnimatePresence>
+                                  </motion.div>
+                                );
+                              })}
+                            </AnimatePresence>
+                          </div>
+                          
+                          {/* Needs OCR Option */}
+                          {files.some(f => getExtension(f.file.name) === 'pdf' && f.targetFormat === 'docx' && (f.status === 'idle' || f.status === 'error')) && (
+                            <div className="mb-8 flex items-start gap-4 p-5 bg-[#1e293b]/60 rounded-2xl border border-white/10 shadow-[0_4px_15px_rgba(0,0,0,0.3)]">
+                              <div className="flex items-center h-6 mt-0.5">
+                                <input
+                                  type="checkbox"
+                                  id="useOcr"
+                                  checked={useOcrForPdf}
+                                  onChange={(e) => setUseOcrForPdf(e.target.checked)}
+                                  className="w-5 h-5 rounded border-white/20 text-cyan-500 focus:ring-cyan-500/50 bg-black/40 transition-colors cursor-pointer shadow-inner"
+                                />
+                              </div>
+                              <label htmlFor="useOcr" className="text-sm text-indigo-200 cursor-pointer select-none">
+                                <span className="font-bold text-white block mb-1 text-base drop-shadow-sm">Use OCR Text Extraction for PDF to DOCX</span>
+                                Slower, but significantly better for scanned PDFs or documents with complex layouts.
+                              </label>
+                            </div>
+                          )}
+
+                          {/* Action Buttons */}
+                          <div className="mt-auto">
+                            {!files.every(f => f.status === 'success') && (
+                              <button
+                                onClick={handleConvert}
+                                disabled={isConvertingAny || files.every(f => f.status === 'success' || f.status === 'converting')}
+                                className={cn(
+                                  "w-full py-4 px-6 rounded-2xl font-bold text-white flex items-center justify-center transition-all duration-300 shadow-xl",
+                                  isConvertingAny || files.every(f => f.status === 'success' || f.status === 'converting')
+                                    ? "bg-slate-700/50 shadow-none cursor-not-allowed text-slate-300 backdrop-blur-md border border-white/5"
+                                    : "bg-gradient-to-r from-cyan-500 to-indigo-500 hover:from-cyan-400 hover:to-indigo-400 hover:-translate-y-1 shadow-[0_8px_25px_rgba(34,211,238,0.4)] border border-white/20"
+                                )}
+                              >
+                                {isConvertingAny ? (
+                                  <>
+                                    <RefreshCw className="w-6 h-6 mr-3 animate-spin drop-shadow-md" />
+                                    Converting Batch...
+                                  </>
+                                ) : (
+                                  <>
+                                    <Sparkles className="w-6 h-6 mr-2 drop-shadow-md" />
+                                    Convert {files.filter(f => f.status === 'idle' || f.status === 'error').length} Files
+                                  </>
+                                )}
+                              </button>
+                            )}
+                            
+                            {files.every(f => f.status === 'success') && files.length > 0 && (
+                              <div className="flex flex-col sm:flex-row gap-4 items-stretch sm:items-center">
+                                <div className="p-5 bg-emerald-500/20 backdrop-blur-xl border border-emerald-400/40 rounded-2xl flex items-center text-emerald-100 shadow-[0_8px_30px_rgba(16,185,129,0.3)] flex-1">
+                                  <div className="w-12 h-12 rounded-xl bg-emerald-400/30 flex items-center justify-center mr-4 shrink-0 border border-emerald-300/50">
+                                    <CheckCircle2 className="w-7 h-7 text-emerald-300 drop-shadow-[0_0_8px_rgba(52,211,153,0.8)]" />
+                                  </div>
+                                  <div>
+                                    <p className="font-bold text-lg text-emerald-50 drop-shadow-md">Batch Conversion Successful!</p>
+                                    <p className="text-sm font-medium text-emerald-200 mt-0.5">You can download files individually above.</p>
+                                  </div>
+                                </div>
+                                <button
+                                  onClick={handleDownloadAll}
+                                  disabled={isZipping}
+                                  className="p-5 bg-gradient-to-r from-cyan-500 to-indigo-500 hover:from-cyan-400 hover:to-indigo-400 text-white rounded-2xl font-bold transition-all shadow-[0_8px_25px_rgba(34,211,238,0.4)] flex items-center justify-center hover:-translate-y-1 border border-white/20 whitespace-nowrap"
+                                >
+                                  {isZipping ? (
+                                    <>
+                                      <RefreshCw className="w-6 h-6 mr-3 animate-spin drop-shadow-md" />
+                                      Zipping...
+                                    </>
+                                  ) : (
+                                    <>
+                                      <Download className="w-6 h-6 mr-3 drop-shadow-md" />
+                                      Download All (.zip)
+                                    </>
+                                  )}
+                                </button>
+                              </div>
+                            )}
+                          </div>
+                  </motion.div>
+                )}
+              </AnimatePresence>
+              </ErrorBoundary>
+            </div>
+          </div>
+
+
+
+        </div>
+      </main>
+    </div>
+  );
+}
