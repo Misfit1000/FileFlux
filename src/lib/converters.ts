@@ -2,18 +2,19 @@ import Papa from 'papaparse';
 import { marked } from 'marked';
 import mammoth from 'mammoth';
 import { jsPDF } from 'jspdf';
-import * as XLSX from 'xlsx';
 import { renderAsync } from 'docx-preview';
 import html2canvas from 'html2canvas';
-import * as pdfjsLib from 'pdfjs-dist';
-import { createWorker, createScheduler } from 'tesseract.js';
 import { Document, Packer, Paragraph, TextRun, TabStopType } from 'docx';
 import yaml from 'js-yaml';
 import { json2xml, xml2json } from 'xml-js';
 import JSZip from 'jszip';
 
-// Setup pdfjs worker
-pdfjsLib.GlobalWorkerOptions.workerSrc = `https://unpkg.com/pdfjs-dist@${pdfjsLib.version}/build/pdf.worker.min.mjs`;
+// Dynamic import for pdfjs
+async function getPdfjs() {
+  const pdfjsLib = await import('pdfjs-dist');
+  pdfjsLib.GlobalWorkerOptions.workerSrc = `https://unpkg.com/pdfjs-dist@${pdfjsLib.version}/build/pdf.worker.min.mjs`;
+  return pdfjsLib;
+}
 
 export const SUPPORTED_FORMATS: Record<string, string[]> = {
   // Images
@@ -159,6 +160,7 @@ async function convertPdfToDocx(file: File, useOcr: boolean = false): Promise<Bl
   }
 
   const arrayBuffer = await file.arrayBuffer();
+  const pdfjsLib = await getPdfjs();
   const pdf = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
   
   const children: Paragraph[] = [];
@@ -359,6 +361,7 @@ let ocrScheduler: any = null;
 
 async function getOcrScheduler() {
   if (!ocrScheduler) {
+    const { createWorker, createScheduler } = await import('tesseract.js');
     ocrScheduler = createScheduler();
     const numWorkers = Math.min(4, navigator.hardwareConcurrency || 2);
     for (let i = 0; i < numWorkers; i++) {
@@ -377,6 +380,7 @@ async function getOcrScheduler() {
 
 async function convertPdfToDocxWithOcr(file: File): Promise<Blob> {
   const arrayBuffer = await file.arrayBuffer();
+  const pdfjsLib = await getPdfjs();
   const pdf = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
   
   const scheduler = await getOcrScheduler();
@@ -529,6 +533,7 @@ async function performOcr(file: File, isPdf: boolean): Promise<Blob> {
   
   if (isPdf) {
     const arrayBuffer = await file.arrayBuffer();
+    const pdfjsLib = await getPdfjs();
     const pdf = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
     
     const pagePromises = [];
@@ -569,6 +574,7 @@ async function performOcr(file: File, isPdf: boolean): Promise<Blob> {
 
 async function extractPdfText(file: File): Promise<Blob> {
   const arrayBuffer = await file.arrayBuffer();
+  const pdfjsLib = await getPdfjs();
   const pdf = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
   let fullText = '';
   for (let i = 1; i <= pdf.numPages; i++) {
@@ -673,6 +679,7 @@ async function convertDocx(file: File, toExt: string): Promise<Blob> {
 }
 
 async function convertSpreadsheet(file: File, fromExt: string, toExt: string): Promise<Blob> {
+  const XLSX = await import('xlsx');
   const arrayBuffer = await file.arrayBuffer();
   const workbook = XLSX.read(arrayBuffer, { type: 'array' });
   const firstSheetName = workbook.SheetNames[0];
@@ -756,6 +763,7 @@ async function convertData(file: File, fromExt: string, toExt: string): Promise<
 
     // Export to XLSX
     if (toExt === 'xlsx') {
+      const XLSX = await import('xlsx');
       let data = parseData(text, fromExt);
       if (!Array.isArray(data)) data = [data];
       
@@ -798,6 +806,10 @@ export async function convertFile(file: File, toExt: string, options?: { useOcr?
     }
 
     if (fromExt === 'pdf' && toExt === 'txt') {
+      if (options?.useOcr) {
+        const blob = await performOcr(file, true);
+        return { blob, filename: newFilename };
+      }
       const blob = await extractPdfText(file);
       return { blob, filename: newFilename };
     }

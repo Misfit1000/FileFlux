@@ -4,7 +4,7 @@ import { motion, AnimatePresence } from 'motion/react';
 import { 
   FileUp, ArrowRight, Download, RefreshCw, 
   AlertCircle, CheckCircle2, Eye, Sparkles, Image as ImageIcon, 
-  FileText, Database, X, File, Layers, Plus
+  FileText, Database, X, File, Layers, Plus, RotateCcw, HelpCircle, Sun, Moon
 } from 'lucide-react';
 import { cn } from './lib/utils';
 import { SUPPORTED_FORMATS, getExtension, convertFile, zipFiles } from './lib/converters';
@@ -179,6 +179,15 @@ export default function App() {
   const [useOcrForPdf, setUseOcrForPdf] = useState(false);
   const [isConvertingAny, setIsConvertingAny] = useState(false);
   const [isZipping, setIsZipping] = useState(false);
+  const [theme, setTheme] = useState('dark');
+
+  useEffect(() => {
+    if (theme === 'light') {
+      document.documentElement.setAttribute('data-theme', 'light');
+    } else {
+      document.documentElement.removeAttribute('data-theme');
+    }
+  }, [theme]);
 
   const handleConvert = async () => {
     if (files.length === 0) return;
@@ -276,7 +285,7 @@ export default function App() {
       const url = URL.createObjectURL(zipBlob);
       const a = document.createElement('a');
       a.href = url;
-      a.download = `NexusConvert_Files_${Date.now()}.zip`;
+      a.download = `FileFlux_Files_${Date.now()}.zip`;
       document.body.appendChild(a);
       a.click();
       document.body.removeChild(a);
@@ -295,6 +304,24 @@ export default function App() {
     setFiles([]);
     setError(null);
     setUseOcrForPdf(false);
+  };
+
+  const handleResetFile = (id: string) => {
+    setFiles(current => current.map(f => {
+      if (f.id === id) {
+        if (f.convertedUrl) URL.revokeObjectURL(f.convertedUrl);
+        return {
+          ...f,
+          status: 'idle',
+          convertedUrl: undefined,
+          convertedName: undefined,
+          _blob: undefined,
+          showPreview: false,
+          error: undefined
+        };
+      }
+      return f;
+    }));
   };
 
   const removeFile = (id: string) => {
@@ -350,17 +377,25 @@ export default function App() {
               <Layers className="w-5 h-5 text-white" />
             </div>
             <h1 className="text-xl font-bold tracking-tight text-white drop-shadow-[0_2px_4px_rgba(0,0,0,0.5)]">
-              NexusConvert
+              FileFlux
             </h1>
           </div>
-          <a 
-            href="https://github.com" 
-            target="_blank" 
-            rel="noreferrer"
-            className="text-sm font-bold text-indigo-100 hover:text-white transition-colors bg-white/5 hover:bg-white/10 px-4 py-2 rounded-full border border-white/10 shadow-[0_4px_12px_rgba(0,0,0,0.2)]"
-          >
-            Documentation
-          </a>
+          <div className="flex items-center gap-3">
+            <button 
+              onClick={() => setTheme(t => t === 'dark' ? 'light' : 'dark')}
+              className="p-2 rounded-full border border-white/10 hover:bg-white/10 text-indigo-200 hover:text-white transition-colors mr-2 shadow-[0_4px_12px_rgba(0,0,0,0.2)]"
+              title={theme === 'dark' ? "Switch to Light Mode" : "Switch to Dark Mode"}
+            >
+              {theme === 'dark' ? <Sun className="w-5 h-5" /> : <Moon className="w-5 h-5" />}
+            </button>
+            <button 
+              onClick={() => alert("FileFlux allows you to flexibly convert any file to dozens of formats. Just drag and drop, select your target output format, and hit convert! We use a combination of web assembly native processing and serverless processing.")}
+              className="text-sm flex items-center gap-2 font-bold text-indigo-100 hover:text-white transition-colors bg-white/5 hover:bg-white/10 px-4 py-2 rounded-full border border-white/10 shadow-[0_4px_12px_rgba(0,0,0,0.2)]"
+            >
+              <HelpCircle className="w-4 h-4" />
+              What is FileFlux?
+            </button>
+          </div>
         </div>
       </header>
 
@@ -411,69 +446,96 @@ export default function App() {
                     animate={{ opacity: 1, y: 0 }}
                     exit={{ opacity: 0, y: -5 }}
                     transition={{ duration: 0.2 }}
-                    className="flex-1 flex flex-col"
+                    className="flex-1 flex flex-col relative"
                   >
                           <div
                             {...getRootProps()}
                             className={cn(
-                              "flex-1 border-2 border-dashed rounded-[2rem] p-8 md:p-12 text-center cursor-pointer transition-all duration-300 ease-out flex flex-col items-center justify-center min-h-[400px] shadow-[inset_0_2px_20px_rgba(0,0,0,0.3)]",
-                              isDragReject ? "border-red-400 bg-red-900/20 scale-[0.99]" :
-                              isDragAccept ? "border-cyan-400 bg-cyan-900/20 scale-[0.99]" :
+                              "relative flex-1 border-2 border-dashed rounded-[2rem] p-8 md:p-12 text-center cursor-pointer transition-all duration-500 ease-out flex flex-col items-center justify-center min-h-[400px] shadow-[inset_0_2px_20px_rgba(0,0,0,0.3)] overflow-hidden group",
+                              isDragReject ? "border-red-400 bg-red-900/20 scale-[0.98]" :
+                              isDragAccept ? "border-cyan-400 bg-cyan-900/30 scale-[0.98]" :
                               isDragActive 
-                                ? `${activeCatData.border} ${activeCatData.bg} scale-[0.99] border-opacity-100` 
-                                : "border-white/20 bg-white/5 hover:bg-white/10 hover:border-white/40"
+                                ? `${activeCatData.border} ${activeCatData.bg} scale-[0.98] border-opacity-100` 
+                                : "border-white/20 bg-white/5 hover:bg-white/10 hover:border-white/40 hover:shadow-[inset_0_2px_30px_rgba(255,255,255,0.05)]"
                             )}
                           >
                             <input {...getInputProps()} />
-                            <motion.div 
-                              animate={isDragActive ? { scale: [1, 1.1, 1] } : { y: [0, -5, 0] }}
-                              transition={isDragActive ? { duration: 1, repeat: Infinity } : { duration: 4, repeat: Infinity, ease: "easeInOut" }}
-                              className={cn(
-                              "w-24 h-24 mb-6 rounded-3xl flex items-center justify-center shadow-[0_10px_30px_rgba(0,0,0,0.3)] border border-white/20 backdrop-blur-md relative", 
-                              isDragAccept ? "bg-cyan-500/30 border-cyan-400/50" :
-                              isDragReject ? "bg-red-500/30 border-red-400/50" :
-                              "bg-[#1e293b]/60"
-                            )}>
-                              {isDragActive && !isDragReject && (
-                                <motion.div className="absolute inset-0 rounded-3xl bg-cyan-400/20 blur-xl" animate={{ opacity: [0.5, 1, 0.5] }} transition={{ duration: 1.5, repeat: Infinity }} />
-                              )}
-                              {isDragReject ? (
-                                <AlertCircle className="w-12 h-12 text-red-400 drop-shadow-[0_0_10px_rgba(248,113,113,0.8)] relative z-10" />
-                              ) : isDragAccept ? (
-                                <CheckCircle2 className="w-12 h-12 text-cyan-400 drop-shadow-[0_0_10px_rgba(34,211,238,0.8)] relative z-10" />
-                              ) : (
-                                <activeCatData.icon className={cn("w-12 h-12 relative z-10", activeCatData.color, "drop-shadow-[0_2px_10px_rgba(0,0,0,0.5)]")} />
-                              )}
-                            </motion.div>
-                            <h3 className={cn(
-                              "text-3xl font-bold mb-4 transition-colors duration-300 drop-shadow-md",
-                              isDragReject ? "text-red-400" :
-                              isDragAccept ? "text-cyan-400" :
-                              "text-white"
-                            )}>
-                              {isDragReject ? "File type not supported!" : 
-                               isDragAccept ? "Drop to upload!" : 
-                               isDragActive ? "Drop it like it's hot!" : 
-                               `Upload ${activeCatData.label}`}
-                            </h3>
-                            <p className={cn(
-                              "font-medium max-w-sm mx-auto mb-8 transition-colors duration-300 text-base drop-shadow-sm",
-                              isDragReject ? "text-red-300" :
-                              isDragAccept ? "text-cyan-300" :
-                              "text-indigo-200"
-                            )}>
-                              {isDragReject ? `Please select a valid file for ${activeCatData.label} mode.` :
-                               isDragAccept ? "Release to start conversion." :
-                               "Drag and drop your files here, or click to browse from your computer."}
-                            </p>
                             
-                            {/* Format pills */}
-                            <div className="flex flex-wrap justify-center gap-2">
-                              {getFormatPills(activeCategory).map(fmt => (
-                                <span key={fmt} className="px-4 py-1.5 bg-black/40 backdrop-blur-md border border-white/10 rounded-xl text-xs font-bold text-indigo-100 shadow-[0_2px_8px_rgba(0,0,0,0.4)]">
-                                  {fmt}
-                                </span>
-                              ))}
+                            {/* Animated Background Ring when Active */}
+                            <AnimatePresence>
+                              {isDragActive && !isDragReject && (
+                                <motion.div 
+                                  initial={{ opacity: 0, scale: 0.5 }}
+                                  animate={{ opacity: 1, scale: 1 }}
+                                  exit={{ opacity: 0, scale: 0.5 }}
+                                  transition={{ duration: 0.5 }}
+                                  className="absolute inset-0 flex items-center justify-center z-0 pointer-events-none"
+                                >
+                                  <motion.div 
+                                     className="w-[300px] h-[300px] sm:w-[400px] sm:h-[400px] rounded-full border border-cyan-500/30 bg-cyan-500/5 blur-xl"
+                                     animate={{ scale: [1, 1.4], opacity: [0.8, 0] }}
+                                     transition={{ duration: 1.5, repeat: Infinity, ease: "easeOut" }}
+                                  />
+                                  <motion.div 
+                                     className="absolute w-[200px] h-[200px] sm:w-[300px] sm:h-[300px] rounded-full border border-cyan-400/40 bg-cyan-400/5 blur-lg"
+                                     animate={{ scale: [1, 1.4], opacity: [0.8, 0] }}
+                                     transition={{ duration: 1.5, repeat: Infinity, ease: "easeOut", delay: 0.3 }}
+                                  />
+                                </motion.div>
+                              )}
+                            </AnimatePresence>
+
+                            <div className="relative z-10 flex flex-col items-center">
+                              <motion.div 
+                                animate={isDragActive ? { scale: [1, 1.15, 1], rotate: [0, -5, 5, 0] } : { y: [0, -6, 0] }}
+                                transition={isDragActive ? { duration: 0.8, repeat: Infinity } : { duration: 4, repeat: Infinity, ease: "easeInOut" }}
+                                className={cn(
+                                "w-28 h-28 sm:w-32 sm:h-32 mb-6 rounded-[2rem] flex items-center justify-center shadow-[0_15px_40px_rgba(0,0,0,0.4)] border border-white/20 backdrop-blur-xl relative transition-colors duration-300", 
+                                isDragAccept ? "bg-cyan-500/40 border-cyan-400/60 shadow-[0_0_50px_rgba(34,211,238,0.3)]" :
+                                isDragReject ? "bg-red-500/40 border-red-400/60 shadow-[0_0_50px_rgba(248,113,113,0.3)]" :
+                                "bg-[#1e293b]/80 group-hover:bg-[#1e293b]"
+                              )}>
+                                {isDragActive && !isDragReject && (
+                                  <motion.div className="absolute inset-0 rounded-[2rem] bg-cyan-400/20 blur-xl" animate={{ opacity: [0.5, 1, 0.5] }} transition={{ duration: 1.5, repeat: Infinity }} />
+                                )}
+                                {isDragReject ? (
+                                  <AlertCircle className="w-14 h-14 sm:w-16 sm:h-16 text-red-400 drop-shadow-[0_0_12px_rgba(248,113,113,0.8)] relative z-10" />
+                                ) : isDragAccept ? (
+                                  <CheckCircle2 className="w-14 h-14 sm:w-16 sm:h-16 text-cyan-400 drop-shadow-[0_0_12px_rgba(34,211,238,0.8)] relative z-10" />
+                                ) : (
+                                  <activeCatData.icon className={cn("w-14 h-14 sm:w-16 sm:h-16 relative z-10 transition-transform duration-300 group-hover:scale-110", activeCatData.color, "drop-shadow-[0_2px_12px_rgba(0,0,0,0.6)]")} />
+                                )}
+                              </motion.div>
+                              <h3 className={cn(
+                                "text-3xl sm:text-4xl font-bold mb-4 transition-colors duration-300 drop-shadow-md tracking-tight",
+                                isDragReject ? "text-red-400" :
+                                isDragAccept ? "text-cyan-400" :
+                                "text-white"
+                              )}>
+                                {isDragReject ? "File type not supported!" : 
+                                 isDragAccept ? "Drop to upload!" : 
+                                 isDragActive ? "Drop it like it's hot!" : 
+                                 `Upload ${activeCatData.label}`}
+                              </h3>
+                              <p className={cn(
+                                "font-medium max-w-sm mx-auto mb-10 transition-colors duration-300 text-lg drop-shadow-sm",
+                                isDragReject ? "text-red-300" :
+                                isDragAccept ? "text-cyan-300" :
+                                "text-indigo-200"
+                              )}>
+                                {isDragReject ? `Please select a valid file for ${activeCatData.label} mode.` :
+                                 isDragAccept ? "Release to start conversion." :
+                                 "Drag and drop your files here, or click to browse from your computer."}
+                              </p>
+                              
+                              {/* Format pills */}
+                              <div className="flex flex-wrap justify-center gap-2.5">
+                                {getFormatPills(activeCategory).map(fmt => (
+                                  <span key={fmt} className="px-5 py-2 bg-black/40 backdrop-blur-md border border-white/10 rounded-xl text-sm font-bold text-indigo-100 shadow-[0_4px_12px_rgba(0,0,0,0.5)]">
+                                    {fmt}
+                                  </span>
+                                ))}
+                              </div>
                             </div>
                           </div>
                   </motion.div>
@@ -505,20 +567,31 @@ export default function App() {
                           <div className="space-y-4 mb-8 max-h-[50vh] overflow-y-auto pr-2 custom-scrollbar">
                             <AnimatePresence>
                               {files.map(fileItem => {
+                                const getCategoryExtensions = (catId: string) => {
+                                  switch (catId) {
+                                    case 'images': return ['png', 'jpg', 'jpeg', 'webp', 'bmp', 'gif', 'svg', 'ico'];
+                                    case 'documents': return ['pdf', 'docx', 'txt', 'txt (OCR)', 'md', 'html'];
+                                    case 'data': return ['json', 'csv', 'xlsx', 'xml', 'yaml', 'yml'];
+                                    default: return [];
+                                  }
+                                };
                                 const ext = getExtension(fileItem.file.name);
-                                const available = SUPPORTED_FORMATS[ext] || [];
+                                const allAvailable = SUPPORTED_FORMATS[ext] || [];
+                                const available = activeCategory === 'universal'
+                                  ? allAvailable
+                                  : allAvailable.filter(fmt => getCategoryExtensions(activeCategory).includes(fmt));
                                 
                                 return (
                                   <motion.div
-                                    layout
+                                    layout="position"
                                     variants={{
-                                      hidden: { opacity: 0, y: 20, scale: 0.95 },
-                                      visible: { opacity: 1, y: 0, scale: 1 }
+                                      hidden: { opacity: 0, y: 20 },
+                                      visible: { opacity: 1, y: 0 }
                                     }}
                                     initial="hidden"
                                     animate="visible"
-                                    exit={{ opacity: 0, scale: 0.95, transition: { duration: 0.2 } }}
-                                    transition={{ type: "spring", stiffness: 300, damping: 24 }}
+                                    exit={{ opacity: 0, scale: 0.95, transition: { duration: 0.15 } }}
+                                    transition={{ type: "tween", duration: 0.3, ease: "easeOut" }}
                                     key={fileItem.id}
                                     className={cn(
                                       "relative backdrop-blur-xl rounded-2xl border overflow-hidden transition-all duration-500",
@@ -593,19 +666,26 @@ export default function App() {
                                         ) : fileItem.status === 'success' && fileItem.convertedUrl ? (
                                           <div className="flex gap-2">
                                             <button
+                                              onClick={() => handleResetFile(fileItem.id)}
+                                              className="p-2.5 bg-white/10 hover:bg-white/20 text-indigo-200 border-white/10 rounded-xl font-bold transition-all shadow-lg border"
+                                              title="Reconvert back to original file"
+                                            >
+                                              <RotateCcw className="w-5 h-5 pointer-events-none" />
+                                            </button>
+                                            <button
                                               onClick={() => togglePreview(fileItem.id)}
                                               className={cn("p-2.5 rounded-xl font-bold transition-all shadow-lg border", fileItem.showPreview ? "bg-cyan-500/20 text-cyan-300 border-cyan-400/50" : "bg-white/10 hover:bg-white/20 text-indigo-200 border-white/10")}
-                                              title="Preview"
+                                              title="Preview the extracted file contents"
                                             >
-                                              <Eye className="w-5 h-5" />
+                                              <Eye className="w-5 h-5 pointer-events-none" />
                                             </button>
                                             <a
                                               href={fileItem.convertedUrl}
                                               download={fileItem.convertedName}
                                               className="p-2.5 bg-gradient-to-r from-cyan-500 to-indigo-500 hover:from-cyan-400 hover:to-indigo-400 text-white rounded-xl font-bold transition-all shadow-[0_4px_15px_rgba(34,211,238,0.3)] hover:-translate-y-0.5 border border-white/20"
-                                              title="Download"
+                                              title="Download the converted file"
                                             >
-                                              <Download className="w-5 h-5" />
+                                              <Download className="w-5 h-5 pointer-events-none" />
                                             </a>
                                           </div>
                                         ) : null}
@@ -614,8 +694,9 @@ export default function App() {
                                           onClick={() => removeFile(fileItem.id)}
                                           className="p-2.5 text-indigo-400/50 hover:text-red-400 hover:bg-white/10 rounded-xl transition-all"
                                           disabled={isConvertingAny}
+                                          title="Remove this file from the list"
                                         >
-                                          <X className="w-5 h-5" />
+                                          <X className="w-5 h-5 pointer-events-none" />
                                         </button>
                                       </div>
                                     </div>
@@ -626,7 +707,8 @@ export default function App() {
                                           initial={{ height: 0, opacity: 0 }}
                                           animate={{ height: 'auto', opacity: 1 }}
                                           exit={{ height: 0, opacity: 0 }}
-                                          className="border-t border-white/10 bg-black/30 p-6"
+                                          transition={{ duration: 0.3, ease: 'easeInOut' }}
+                                          className="border-t border-white/10 bg-black/30 p-6 overflow-hidden"
                                         >
                                           <div className="mb-4 flex items-center justify-between">
                                             <h4 className="text-sm font-bold text-indigo-200 drop-shadow-sm">Preview: {fileItem.convertedName}</h4>
@@ -642,7 +724,7 @@ export default function App() {
                           </div>
                           
                           {/* Needs OCR Option */}
-                          {files.some(f => getExtension(f.file.name) === 'pdf' && f.targetFormat === 'docx' && (f.status === 'idle' || f.status === 'error')) && (
+                          {files.some(f => getExtension(f.file.name) === 'pdf' && (f.targetFormat === 'docx' || f.targetFormat === 'txt') && (f.status === 'idle' || f.status === 'error')) && (activeCategory === 'documents' || activeCategory === 'universal') && (
                             <div className="mb-8 flex items-start gap-4 p-5 bg-[#1e293b]/60 rounded-2xl border border-white/10 shadow-[0_4px_15px_rgba(0,0,0,0.3)]">
                               <div className="flex items-center h-6 mt-0.5">
                                 <input
@@ -654,11 +736,57 @@ export default function App() {
                                 />
                               </div>
                               <label htmlFor="useOcr" className="text-sm text-indigo-200 cursor-pointer select-none">
-                                <span className="font-bold text-white block mb-1 text-base drop-shadow-sm">Use OCR Text Extraction for PDF to DOCX</span>
-                                Slower, but significantly better for scanned PDFs or documents with complex layouts.
+                                <span className="font-bold text-white block mb-1 text-base drop-shadow-sm">Use OCR Text Extraction for PDF</span>
+                                Slower, but significantly better for scanned PDFs or documents with complex layouts. Works for converting to DOCX and TXT.
                               </label>
                             </div>
                           )}
+
+                          {/* Overall Progress Bar during conversion */}
+                          <AnimatePresence>
+                            {isConvertingAny && (
+                              <motion.div
+                                initial={{ opacity: 0, height: 0, overflow: 'hidden' }}
+                                animate={{ opacity: 1, height: 'auto', overflow: 'visible' }}
+                                exit={{ opacity: 0, height: 0, overflow: 'hidden' }}
+                                transition={{ duration: 0.3 }}
+                                className="mb-6"
+                              >
+                                <div className="bg-[#1e293b]/80 backdrop-blur-md rounded-2xl border border-cyan-500/30 p-5 shadow-[0_0_20px_rgba(34,211,238,0.1)] relative overflow-hidden">
+                                  {/* Dynamic Background Pulse */}
+                                  <motion.div 
+                                    className="absolute inset-0 bg-gradient-to-r from-cyan-500/10 to-indigo-500/10"
+                                    animate={{ opacity: [0.3, 0.8, 0.3] }}
+                                    transition={{ duration: 2, repeat: Infinity, ease: "easeInOut" }}
+                                  />
+                                  <div className="relative z-10 flex justify-between items-center mb-3">
+                                    <div className="flex items-center gap-3 text-cyan-400">
+                                      <RefreshCw className="w-5 h-5 animate-spin drop-shadow-[0_0_8px_rgba(34,211,238,0.8)]" />
+                                      <span className="font-bold tracking-tight text-white drop-shadow-sm">Converting Files...</span>
+                                    </div>
+                                    <div className="text-sm font-bold text-cyan-200 bg-cyan-900/40 px-3 py-1 rounded-full border border-cyan-400/20">
+                                      {files.filter(f => f.status === 'success' || f.status === 'error').length} / {files.length}
+                                    </div>
+                                  </div>
+                                  <div className="relative z-10 h-3 w-full bg-black/40 rounded-full overflow-hidden border border-white/5 shadow-[inset_0_2px_4px_rgba(0,0,0,0.6)]">
+                                    <motion.div 
+                                      className="absolute inset-y-0 left-0 bg-gradient-to-r from-cyan-500 to-indigo-500 rounded-full shadow-[0_0_10px_rgba(34,211,238,0.7)]"
+                                      initial={{ width: '0%' }}
+                                      animate={{ width: `${Math.max(5, (files.filter(f => f.status === 'success' || f.status === 'error').length / files.length) * 100)}%` }}
+                                      transition={{ type: 'spring', stiffness: 60, damping: 15 }}
+                                    >
+                                      <motion.div
+                                        className="absolute inset-0 bg-gradient-to-r from-transparent via-white/30 to-transparent skew-x-[-20deg]"
+                                        initial={{ x: '-150%' }}
+                                        animate={{ x: '150%' }}
+                                        transition={{ duration: 1.2, repeat: Infinity, ease: 'linear' }}
+                                      />
+                                    </motion.div>
+                                  </div>
+                                </div>
+                              </motion.div>
+                            )}
+                          </AnimatePresence>
 
                           {/* Action Buttons */}
                           <div className="mt-auto">
