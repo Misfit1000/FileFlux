@@ -14,20 +14,6 @@
   --accent-c: rgba(255, 214, 166, 0.14);
 }
 
-html[data-theme="sunrise"] {
-  --bg-base: #f5fbff;
-  --bg-elevated: rgba(247, 252, 255, 0.74);
-  --bg-soft: rgba(255, 255, 255, 0.62);
-  --border-strong: rgba(43, 95, 138, 0.12);
-  --text-primary: #14314d;
-  --text-soft: rgba(53, 97, 136, 0.82);
-  --text-muted: rgba(58, 94, 122, 0.78);
-  --shadow-heavy: 0 28px 80px rgba(88, 167, 216, 0.22);
-  --accent-a: rgba(96, 165, 250, 0.22);
-  --accent-b: rgba(121, 214, 255, 0.2);
-  --accent-c: rgba(255, 208, 158, 0.18);
-}
-
 * {
   box-sizing: border-box;
 }
@@ -47,14 +33,6 @@ body {
     linear-gradient(180deg, #0a1a38 0%, #07152a 34%, #040a16 100%);
   color: var(--text-primary);
   font-family: "Trebuchet MS", "Segoe UI", sans-serif;
-}
-
-html[data-theme="sunrise"] body {
-  background:
-    radial-gradient(circle at top left, rgba(134, 203, 255, 0.26), transparent 30%),
-    radial-gradient(circle at top right, rgba(141, 225, 255, 0.22), transparent 26%),
-    radial-gradient(circle at 50% 100%, rgba(255, 214, 178, 0.28), transparent 24%),
-    linear-gradient(180deg, #eff8ff 0%, #e4f2ff 48%, #fff4e8 100%);
 }
 
 button,
@@ -120,12 +98,6 @@ textarea {
   mask-image: linear-gradient(180deg, rgba(0, 0, 0, 0.55), transparent 85%);
 }
 
-html[data-theme="sunrise"] .anime-grid {
-  background-image:
-    linear-gradient(rgba(78, 48, 99, 0.06) 1px, transparent 1px),
-    linear-gradient(90deg, rgba(78, 48, 99, 0.06) 1px, transparent 1px);
-}
-
 .anime-panel {
   background: var(--bg-elevated);
   border: 1px solid var(--border-strong);
@@ -172,6 +144,7 @@ html[data-theme="sunrise"] .anime-grid {
   border-radius: 1.4rem;
   border: 1px solid rgba(255, 255, 255, 0.16);
   box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.15), 0 16px 35px rgba(10, 10, 30, 0.22);
+  transition: transform 220ms ease, box-shadow 220ms ease, border-color 220ms ease, background-color 220ms ease;
 }
 
 .anime-badge-box {
@@ -204,6 +177,7 @@ html[data-theme="sunrise"] .anime-grid {
   border: 1px solid rgba(255, 255, 255, 0.12);
   background: rgba(255, 255, 255, 0.08);
   color: var(--text-muted);
+  transition: transform 220ms ease, background-color 220ms ease, border-color 220ms ease, color 220ms ease;
 }
 
 .anime-chip {
@@ -236,35 +210,11 @@ html[data-theme="sunrise"] .anime-grid {
     rgba(255, 255, 255, 0.05);
   padding: 1.25rem;
   backdrop-filter: blur(16px);
+  transition: transform 240ms ease, border-color 240ms ease, background-color 240ms ease, box-shadow 240ms ease;
 }
 
 .anime-hero-shell {
   min-height: 24rem;
-}
-
-.anime-nav-link {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  min-height: 2.6rem;
-  padding: 0 1rem;
-  border-radius: 9999px;
-  border: 1px solid rgba(255, 255, 255, 0.08);
-  color: var(--text-soft);
-  text-decoration: none;
-  font-size: 0.82rem;
-  font-weight: 700;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
-  background: rgba(255, 255, 255, 0.04);
-  transition: transform 150ms ease, border-color 150ms ease, background-color 150ms ease, color 150ms ease;
-}
-
-.anime-nav-link:hover {
-  transform: translateY(-1px);
-  border-color: rgba(255, 255, 255, 0.14);
-  background: rgba(255, 255, 255, 0.08);
-  color: white;
 }
 
 .anime-icon-button,
@@ -276,8 +226,9 @@ html[data-theme="sunrise"] .anime-grid {
   justify-content: center;
   gap: 0.6rem;
   border-radius: 1rem;
-  transition: transform 150ms ease, background-color 150ms ease, border-color 150ms ease, box-shadow 150ms ease;
+  transition: transform 180ms ease, background-color 180ms ease, border-color 180ms ease, box-shadow 180ms ease, opacity 180ms ease;
   cursor: pointer;
+  will-change: transform;
 }
 
 .anime-icon-button {
@@ -342,7 +293,8 @@ html[data-theme="sunrise"] .anime-grid {
   border-radius: 1.35rem;
   border: 1px solid transparent;
   background: rgba(255, 255, 255, 0.04);
-  transition: transform 150ms ease, border-color 150ms ease, background-color 150ms ease;
+  transition: transform 180ms ease, border-color 180ms ease, background-color 180ms ease, box-shadow 180ms ease;
+  will-change: transform;
 }
 
 .anime-category-card:hover,
@@ -368,6 +320,7 @@ html[data-theme="sunrise"] .anime-grid {
   border: 1px solid rgba(255, 255, 255, 0.1);
   background: rgba(255, 255, 255, 0.06);
   padding: 1rem 1.1rem;
+  transition: transform 220ms ease, border-color 220ms ease, background-color 220ms ease;
 }
 
 .anime-step-card,
@@ -375,6 +328,7 @@ html[data-theme="sunrise"] .anime-grid {
   border-radius: 1.2rem;
   border: 1px solid rgba(255, 255, 255, 0.1);
   background: rgba(255, 255, 255, 0.045);
+  transition: transform 220ms ease, border-color 220ms ease, background-color 220ms ease, box-shadow 220ms ease;
 }
 
 .anime-step-card {
@@ -454,19 +408,6 @@ html[data-theme="sunrise"] .anime-grid {
   color: white;
 }
 
-html[data-theme="sunrise"] .anime-stat-value,
-html[data-theme="sunrise"] .font-display,
-html[data-theme="sunrise"] .anime-icon-button,
-html[data-theme="sunrise"] .anime-cta-secondary,
-html[data-theme="sunrise"] .anime-danger-button,
-html[data-theme="sunrise"] .anime-primary-button {
-  color: var(--text-primary);
-}
-
-html[data-theme="sunrise"] .anime-primary-button {
-  color: #2d1836;
-}
-
 .anime-dropzone {
   position: relative;
   border-style: dashed;
@@ -476,6 +417,7 @@ html[data-theme="sunrise"] .anime-primary-button {
     linear-gradient(180deg, rgba(255, 255, 255, 0.05), rgba(255, 255, 255, 0.025)),
     rgba(255, 255, 255, 0.03);
   box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.03);
+  transition: transform 220ms ease, border-color 220ms ease, background-color 220ms ease, box-shadow 220ms ease;
 }
 
 .anime-dropzone:hover {
@@ -514,6 +456,7 @@ html[data-theme="sunrise"] .anime-primary-button {
     linear-gradient(180deg, rgba(255, 255, 255, 0.05), rgba(255, 255, 255, 0.032)),
     rgba(255, 255, 255, 0.05);
   box-shadow: 0 22px 52px rgba(8, 10, 30, 0.2);
+  transition: transform 220ms ease, border-color 220ms ease, background-color 220ms ease, box-shadow 220ms ease;
 }
 
 .anime-format-picker {
@@ -544,6 +487,60 @@ html[data-theme="sunrise"] .anime-primary-button {
     rgba(255, 255, 255, 0.045);
   padding: 1.35rem;
   box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.05);
+  transition: transform 220ms ease, border-color 220ms ease, background-color 220ms ease, box-shadow 220ms ease;
+}
+
+.anime-panel:hover,
+.anime-hero-card:hover,
+.anime-stat-card:hover,
+.anime-step-card:hover,
+.anime-focus-card:hover,
+.anime-file-card:hover,
+.anime-tool-card:hover {
+  border-color: rgba(255, 255, 255, 0.16);
+  box-shadow: 0 26px 64px rgba(4, 9, 27, 0.28);
+}
+
+.anime-chip:hover,
+.anime-pill:hover,
+.anime-badge-box:hover,
+.anime-drop-icon:hover,
+.anime-file-icon:hover,
+.anime-stat-card:hover,
+.anime-step-card:hover,
+.anime-focus-card:hover,
+.anime-tool-card:hover {
+  transform: translateY(-2px);
+}
+
+.anime-panel {
+  animation: animeFadeUp 720ms ease both;
+}
+
+.anime-trust-strip .anime-focus-card:nth-child(2),
+.anime-tools-grid .anime-tool-card:nth-child(2) {
+  animation-delay: 80ms;
+}
+
+.anime-trust-strip .anime-focus-card:nth-child(3),
+.anime-tools-grid .anime-tool-card:nth-child(3) {
+  animation-delay: 140ms;
+}
+
+.anime-trust-strip .anime-focus-card:nth-child(4),
+.anime-tools-grid .anime-tool-card:nth-child(4) {
+  animation-delay: 200ms;
+}
+
+@keyframes animeFadeUp {
+  from {
+    opacity: 0;
+    transform: translateY(18px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
 }
 
 @media (min-width: 768px) {
@@ -575,12 +572,6 @@ html[data-theme="sunrise"] .anime-primary-button {
     font-size: 0.68rem;
     letter-spacing: 0.12em;
     padding: 0.6rem 0.8rem;
-  }
-
-  .anime-nav-link {
-    min-height: 2.4rem;
-    padding: 0 0.85rem;
-    font-size: 0.74rem;
   }
 }
 

@@ -1,4 +1,4 @@
-import React, { useState, useCallback, useEffect, useRef } from 'react';
+import React, { useState, useCallback, useEffect, useRef, useMemo } from 'react';
 import { useDropzone } from 'react-dropzone';
 import { motion, AnimatePresence } from 'motion/react';
 import {
@@ -16,9 +16,6 @@ import {
   Layers,
   Plus,
   RotateCcw,
-  HelpCircle,
-  Sun,
-  Moon,
   Shield,
   WandSparkles,
   Gauge,
@@ -273,14 +270,8 @@ export default function App() {
   const [useOcrForPdf, setUseOcrForPdf] = useState(false);
   const [isConvertingAny, setIsConvertingAny] = useState(false);
   const [isZipping, setIsZipping] = useState(false);
-  const [theme, setTheme] = useState('night');
-  const [showAbout, setShowAbout] = useState(false);
   const [pdfDocxMode, setPdfDocxMode] = useState<ConversionMode>('high-fidelity');
   const filesRef = useRef<FileItem[]>([]);
-
-  useEffect(() => {
-    document.documentElement.setAttribute('data-theme', theme);
-  }, [theme]);
 
   useEffect(() => {
     filesRef.current = files;
@@ -296,19 +287,19 @@ export default function App() {
     };
   }, []);
 
-  const filesToConvert = files.filter((file) => file.status !== 'success');
-  const numConverting = files.filter((file) => file.status === 'converting').length;
+  const filesToConvert = useMemo(() => files.filter((file) => file.status !== 'success'), [files]);
+  const numConverting = useMemo(() => files.filter((file) => file.status === 'converting').length, [files]);
   const isMultipleConverting = filesToConvert.length > 1 && numConverting > 0;
 
-  let globalProgress = 0;
-  if (isMultipleConverting) {
+  const globalProgress = useMemo(() => {
+    if (!isMultipleConverting) return 0;
     const totalProgress = filesToConvert.reduce((acc, file) => {
       if (file.status === 'success' || file.status === 'error') return acc + 100;
       if (file.status === 'converting') return acc + (file.progress || 0);
       return acc;
     }, 0);
-    globalProgress = totalProgress / filesToConvert.length;
-  }
+    return totalProgress / filesToConvert.length;
+  }, [filesToConvert, isMultipleConverting]);
 
   const handleConvert = async () => {
     if (files.length === 0) return;
@@ -388,7 +379,7 @@ export default function App() {
     setIsConvertingAny(false);
   };
 
-  const activeCatData = CATEGORIES.find((category) => category.id === activeCategory)!;
+  const activeCatData = useMemo(() => CATEGORIES.find((category) => category.id === activeCategory)!, [activeCategory]);
 
   const onDrop = useCallback(
     (acceptedFiles: File[], rejectedFiles: any[]) => {
@@ -544,11 +535,10 @@ export default function App() {
     return `${parseFloat((bytes / Math.pow(k, i)).toFixed(dm))} ${sizes[i]}`;
   };
 
-  const pendingCount = files.filter((file) => file.status === 'idle' || file.status === 'error').length;
-  const finishedCount = files.filter((file) => file.status === 'success' || file.status === 'error').length;
-  const successfulCount = files.filter((file) => file.status === 'success').length;
-  const totalQueuedBytes = files.reduce((sum, file) => sum + file.file.size, 0);
-  const failedCount = files.filter((file) => file.status === 'error').length;
+  const pendingCount = useMemo(() => files.filter((file) => file.status === 'idle' || file.status === 'error').length, [files]);
+  const finishedCount = useMemo(() => files.filter((file) => file.status === 'success' || file.status === 'error').length, [files]);
+  const successfulCount = useMemo(() => files.filter((file) => file.status === 'success').length, [files]);
+  const totalQueuedBytes = useMemo(() => files.reduce((sum, file) => sum + file.file.size, 0), [files]);
 
   return (
     <div className="anime-shell min-h-screen overflow-hidden text-[var(--text-primary)]">
@@ -560,7 +550,12 @@ export default function App() {
       </div>
 
       <div className="relative z-10 mx-auto flex min-h-screen w-full max-w-[1440px] flex-col px-4 py-4 sm:px-6 lg:px-8">
-        <header className="anime-panel sticky top-4 z-40 mb-6 rounded-[2rem] px-5 py-4">
+        <motion.header
+          initial={{ opacity: 0, y: -18 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.45, ease: 'easeOut' }}
+          className="anime-panel sticky top-4 z-40 mb-6 rounded-[2rem] px-5 py-4"
+        >
           <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
             <div className="flex items-center gap-4">
               <div className="anime-badge-box">
@@ -573,30 +568,14 @@ export default function App() {
             </div>
 
             <div className="flex flex-wrap items-center gap-3 lg:justify-end">
-              <nav className="hidden items-center gap-2 lg:flex">
-                <a href="#workspace" className="anime-nav-link">Workspace</a>
-                <a href="#tool-grid" className="anime-nav-link">Formats</a>
-                <a href="#promises" className="anime-nav-link">Flow</a>
-              </nav>
               <div className="anime-chip">
                 <Shield className="h-4 w-4" />
                 Private on device
               </div>
               <div className="anime-chip">
                 <WandSparkles className="h-4 w-4" />
-                Simple 3-step flow
+                Easy batch flow
               </div>
-              <button
-                onClick={() => setTheme((current) => (current === 'night' ? 'sunrise' : 'night'))}
-                className="anime-icon-button"
-                title={theme === 'night' ? 'Switch to dawn mode' : 'Switch to midnight mode'}
-              >
-                {theme === 'night' ? <Sun className="h-5 w-5" /> : <Moon className="h-5 w-5" />}
-              </button>
-              <button onClick={() => setShowAbout(true)} className="anime-cta-secondary">
-                <HelpCircle className="h-4 w-4" />
-                About FileFlux
-              </button>
             </div>
           </div>
 
@@ -609,10 +588,15 @@ export default function App() {
               </motion.div>
             )}
           </AnimatePresence>
-        </header>
+        </motion.header>
 
         <main className="flex flex-1 flex-col gap-8">
-          <section className="anime-panel anime-hero-shell relative overflow-hidden rounded-[2.5rem] px-6 py-8 sm:px-8 lg:px-10 lg:py-10">
+          <motion.section
+            initial={{ opacity: 0, y: 22 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.5, delay: 0.05, ease: 'easeOut' }}
+            className="anime-panel anime-hero-shell relative overflow-hidden rounded-[2.5rem] px-6 py-8 sm:px-8 lg:px-10 lg:py-10"
+          >
             <div className="anime-panel-glow" />
             <div className="anime-sea-ribbon" />
             <div className="relative z-10 grid gap-8 xl:grid-cols-[minmax(0,1.3fr)_360px] xl:items-end">
@@ -658,11 +642,18 @@ export default function App() {
                 </div>
               </div>
             </div>
-          </section>
+          </motion.section>
 
           <section className="anime-trust-strip grid gap-4 md:grid-cols-2 xl:grid-cols-4">
             {PROMISE_POINTS.map((point) => (
-              <div key={point.label} className="anime-focus-card flex items-start gap-4">
+              <motion.div
+                key={point.label}
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ duration: 0.35, delay: 0.08 }}
+                whileHover={{ y: -4, scale: 1.01 }}
+                className="anime-focus-card flex items-start gap-4"
+              >
                 <div className="anime-mini-icon">
                   <point.icon className="h-5 w-5 text-cyan-100" />
                 </div>
@@ -670,13 +661,18 @@ export default function App() {
                   <span className="anime-focus-label">{point.label}</span>
                   <strong className="anime-focus-value">{point.value}</strong>
                 </div>
-              </div>
+              </motion.div>
             ))}
           </section>
 
           <div id="workspace" className="grid gap-8 xl:grid-cols-[320px_minmax(0,1fr)]">
           <aside className="order-2 space-y-6 xl:order-1">
-            <section className="anime-panel rounded-[2rem] p-5">
+            <motion.section
+              initial={{ opacity: 0, x: -16 }}
+              animate={{ opacity: 1, x: 0 }}
+              transition={{ duration: 0.35, delay: 0.1 }}
+              className="anime-panel rounded-[2rem] p-5"
+            >
               <div className="mb-4 flex items-center justify-between">
                 <div>
                   <p className="text-[0.68rem] font-bold uppercase tracking-[0.3em] text-[var(--text-soft)]">Choose mode</p>
@@ -704,9 +700,14 @@ export default function App() {
                   </button>
                 ))}
               </div>
-            </section>
+            </motion.section>
 
-            <section className="anime-panel rounded-[2rem] p-5">
+            <motion.section
+              initial={{ opacity: 0, x: -16 }}
+              animate={{ opacity: 1, x: 0 }}
+              transition={{ duration: 0.35, delay: 0.16 }}
+              className="anime-panel rounded-[2rem] p-5"
+            >
               <div className="mb-4 flex items-center justify-between">
                 <div>
                   <p className="text-[0.68rem] font-bold uppercase tracking-[0.3em] text-[var(--text-soft)]">Mission control</p>
@@ -754,10 +755,15 @@ export default function App() {
                   </div>
                 </div>
               </div>
-            </section>
+            </motion.section>
           </aside>
 
-          <section className="anime-panel relative order-1 overflow-hidden rounded-[2.4rem] xl:order-2">
+          <motion.section
+            initial={{ opacity: 0, x: 16 }}
+            animate={{ opacity: 1, x: 0 }}
+            transition={{ duration: 0.45, delay: 0.1 }}
+            className="anime-panel relative order-1 overflow-hidden rounded-[2.4rem] xl:order-2"
+          >
             <div className="anime-panel-glow" />
             <div className="anime-sea-ribbon" />
             <div className="relative flex h-full flex-col p-5 sm:p-7 lg:p-10">
@@ -910,10 +916,10 @@ export default function App() {
                         <div className="flex flex-wrap gap-3">
                           <div {...getRootProps()} className="cursor-pointer">
                             <input {...getInputProps()} />
-                            <button className="anime-cta-secondary">
+                            <span className="anime-cta-secondary" role="button" tabIndex={0}>
                               <Plus className="h-4 w-4" />
                               Add files
-                            </button>
+                            </span>
                           </div>
                           <button onClick={handleReset} className="anime-danger-button">
                             <X className="h-4 w-4" />
@@ -1135,34 +1141,52 @@ export default function App() {
                 </AnimatePresence>
               </ErrorBoundary>
             </div>
-          </section>
+          </motion.section>
           </div>
 
-          <section id="tool-grid" className="anime-panel rounded-[2.4rem] p-6 sm:p-8">
+          <motion.section
+            id="tool-grid"
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.45, delay: 0.12 }}
+            className="anime-panel rounded-[2.4rem] p-6 sm:p-8"
+          >
             <div className="mb-6 flex flex-col gap-3 lg:flex-row lg:items-end lg:justify-between">
               <div>
                 <p className="text-[0.72rem] font-bold uppercase tracking-[0.35em] text-[var(--text-soft)]">Format lanes</p>
-                <h3 className="font-display text-3xl font-extrabold text-white">Built to feel clearer the moment you land.</h3>
+                <h3 className="font-display text-3xl font-extrabold text-white">Everything important stays close to the main workspace.</h3>
               </div>
               <p className="max-w-2xl text-sm leading-7 text-[var(--text-muted)]">
-                The page now leads with one big stage, a lighter trust rail, and cleaner supporting cards so the converter feels more like a polished product and less like a stacked utility panel.
+                These cards explain what the app handles, but the core actions remain simple: add files, choose the format, convert, preview, and download.
               </p>
             </div>
             <div className="anime-tools-grid">
               {STUDIO_TOOLS.map((tool) => (
-                <div key={tool.title} className="anime-tool-card">
+                <motion.div
+                  key={tool.title}
+                  initial={{ opacity: 0, y: 16 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ duration: 0.35, delay: 0.08 }}
+                  whileHover={{ y: -4, scale: 1.01 }}
+                  className="anime-tool-card"
+                >
                   <div className="anime-mini-icon">
                     <tool.icon className="h-5 w-5 text-cyan-100" />
                   </div>
                   <h4 className="mt-4 font-display text-xl font-bold text-white">{tool.title}</h4>
                   <p className="mt-2 text-sm leading-7 text-[var(--text-muted)]">{tool.description}</p>
-                </div>
+                </motion.div>
               ))}
             </div>
-          </section>
+          </motion.section>
 
           <section id="promises" className="grid gap-6 lg:grid-cols-[minmax(0,1.15fr)_minmax(320px,0.85fr)]">
-            <div className="anime-panel rounded-[2.2rem] p-6 sm:p-8">
+            <motion.div
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.4, delay: 0.16 }}
+              className="anime-panel rounded-[2.2rem] p-6 sm:p-8"
+            >
               <p className="text-[0.72rem] font-bold uppercase tracking-[0.35em] text-[var(--text-soft)]">Why it feels better</p>
               <h3 className="mt-3 font-display text-3xl font-extrabold text-white">More room, less friction, stronger focus.</h3>
               <div className="mt-6 grid gap-4 md:grid-cols-3">
@@ -1188,78 +1212,24 @@ export default function App() {
                   </div>
                 </div>
               </div>
-            </div>
+            </motion.div>
 
-            <div className="anime-panel rounded-[2.2rem] p-6 sm:p-8">
+            <motion.div
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.4, delay: 0.2 }}
+              className="anime-panel rounded-[2.2rem] p-6 sm:p-8"
+            >
               <p className="text-[0.72rem] font-bold uppercase tracking-[0.35em] text-[var(--text-soft)]">Trust note</p>
               <h3 className="mt-3 font-display text-2xl font-extrabold text-white">Your queue stays readable even when the batch grows.</h3>
               <div className="mt-6 space-y-4 text-sm leading-7 text-[var(--text-muted)]">
                 <p>The layout keeps the upload stage, queue actions, and preview flow in one path, while PDF-specific controls only appear when they matter.</p>
                 <p>That gives the app a more production-ready front page without compromising the conversion logic we already improved underneath.</p>
               </div>
-              <div className="mt-6 flex flex-wrap gap-3">
-                <button onClick={() => window.location.hash = '#workspace'} className="anime-primary-button lg:w-auto">
-                  Return to workspace
-                </button>
-                <button onClick={() => setShowAbout(true)} className="anime-cta-secondary">
-                  <HelpCircle className="h-4 w-4" />
-                  Learn more
-                </button>
-              </div>
-            </div>
+            </motion.div>
           </section>
         </main>
       </div>
-
-      <AnimatePresence>
-        {showAbout && (
-          <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
-            <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="absolute inset-0 bg-black/70 backdrop-blur-md" onClick={() => setShowAbout(false)} />
-            <motion.div
-              initial={{ opacity: 0, scale: 0.94, y: 20 }}
-              animate={{ opacity: 1, scale: 1, y: 0 }}
-              exit={{ opacity: 0, scale: 0.94, y: 20 }}
-              className="anime-panel relative z-10 w-full max-w-xl rounded-[2rem] p-7"
-            >
-              <div className="mb-5 flex items-start justify-between gap-4">
-                <div className="flex items-center gap-4">
-                  <div className="anime-badge-box">
-                    <Layers className="h-6 w-6" />
-                  </div>
-                  <div>
-                    <p className="text-[0.7rem] font-bold uppercase tracking-[0.32em] text-[var(--text-soft)]">About</p>
-                    <h2 className="font-display text-2xl font-extrabold text-white">FileFlux</h2>
-                  </div>
-                </div>
-                <button onClick={() => setShowAbout(false)} className="anime-icon-button">
-                  <X className="h-5 w-5" />
-                </button>
-              </div>
-
-              <div className="space-y-4 text-sm leading-7 text-[var(--text-muted)] sm:text-base">
-                <p>
-                  <strong className="text-white">FileFlux</strong> is a browser-based file conversion workspace designed for quick format changes, previews, and bulk downloads.
-                </p>
-                <p>
-                  The app keeps the workflow local in your browser, so you can move between images, documents, and structured data without sending every file through a remote upload pipeline.
-                </p>
-                <ul className="space-y-2">
-                  <li>Batch queue with per-file format controls</li>
-                  <li>Preview support for images, text files, PDFs, and DOCX outputs</li>
-                  <li>Optional OCR mode for difficult PDF extractions</li>
-                  <li>One-click zip download after the run finishes</li>
-                </ul>
-              </div>
-
-              <div className="mt-6 flex justify-end">
-                <button onClick={() => setShowAbout(false)} className="anime-primary-button lg:w-auto">
-                  Close
-                </button>
-              </div>
-            </motion.div>
-          </div>
-        )}
-      </AnimatePresence>
     </div>
   );
 }
