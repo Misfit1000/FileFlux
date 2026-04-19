@@ -1,20 +1,20 @@
-<div align="center">
-<img width="1200" height="475" alt="GHBanner" src="https://github.com/user-attachments/assets/0aa67016-6eaf-458a-adb2-6e31a0763ed6" />
-</div>
+# FileFlux
 
-# Run and deploy your AI Studio app
+FileFlux is a local-first file conversion app built with Vite and React. It supports images, documents, and structured data with previews, optional OCR for PDFs, and batch zip downloads.
 
-This contains everything you need to run your app locally.
+## Run locally
 
-View your app in AI Studio: https://ai.studio/apps/99f4048c-a92a-40a8-80c2-0aebef1dcbe9
-
-## Run Locally
-
-**Prerequisites:**  Node.js
-
+Prerequisite: Node.js 20+
 
 1. Install dependencies:
    `npm install`
-2. Set the `GEMINI_API_KEY` in [.env.local](.env.local) to your Gemini API key
-3. Run the app:
+2. Start the dev server:
    `npm run dev`
+3. Open:
+   `http://localhost:3000`
+
+## Available scripts
+
+- `npm run dev` starts the local development server.
+- `npm run build` creates a production build.
+- `npm run lint` runs TypeScript type-checking.

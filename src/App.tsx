@@ -1,10 +1,26 @@
 import React, { useState, useCallback, useEffect, useRef } from 'react';
 import { useDropzone } from 'react-dropzone';
 import { motion, AnimatePresence } from 'motion/react';
-import { 
-  FileUp, ArrowRight, Download, RefreshCw, 
-  AlertCircle, CheckCircle2, Eye, Sparkles, Image as ImageIcon, 
-  FileText, Database, X, File, Layers, Plus, RotateCcw, HelpCircle, Sun, Moon
+import {
+  Download,
+  RefreshCw,
+  AlertCircle,
+  CheckCircle2,
+  Eye,
+  Sparkles,
+  Image as ImageIcon,
+  FileText,
+  Database,
+  X,
+  File,
+  Layers,
+  Plus,
+  RotateCcw,
+  HelpCircle,
+  Sun,
+  Moon,
+  Shield,
+  WandSparkles,
 } from 'lucide-react';
 import { cn } from './lib/utils';
 import { SUPPORTED_FORMATS, getExtension, convertFile, zipFiles } from './lib/converters';
@@ -13,7 +29,7 @@ import { ErrorBoundary } from './components/ErrorBoundary';
 import { Prism as SyntaxHighlighter } from 'react-syntax-highlighter';
 import { vscDarkPlus } from 'react-syntax-highlighter/dist/esm/styles/prism';
 
-function FilePreview({ url, format }: { url: string, format: string }) {
+function FilePreview({ url, format }: { url: string; format: string }) {
   const [content, setContent] = useState<string | null>(null);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const containerRef = useRef<HTMLDivElement>(null);
@@ -30,16 +46,14 @@ function FilePreview({ url, format }: { url: string, format: string }) {
           setContent('pdf');
         } else if (format === 'docx') {
           setContent('docx');
-          // docx-preview will render directly into the DOM container later
-          // Note: rendering takes place in a separate effect or is triggered here
           if (containerRef.current) {
             const response = await fetch(url);
             const blob = await response.blob();
-            
+
             if (blob.size > 20 * 1024 * 1024) {
-               throw new Error("File is too large for the browser to preview safely.");
+              throw new Error('File is too large for the browser to preview safely.');
             }
-            
+
             await renderAsync(blob, containerRef.current, containerRef.current, {
               inWrapper: true,
               ignoreWidth: false,
@@ -51,21 +65,19 @@ function FilePreview({ url, format }: { url: string, format: string }) {
         } else if (['txt', 'csv', 'json', 'md', 'html', 'xml', 'yaml'].includes(format)) {
           const response = await fetch(url);
           const blob = await response.blob();
-          
-          // Truncate text preview for performance and to prevent browser locking up
-          const MAX_BYTES = 100 * 1024; // 100 KB
-          const slice = blob.slice(0, MAX_BYTES);
+          const maxBytes = 100 * 1024;
+          const slice = blob.slice(0, maxBytes);
           const text = await slice.text();
-          
+
           if (isMounted) {
-            if (blob.size > MAX_BYTES) {
-              setContent(text + '\n\n... [Preview truncated for performance. Download to see full file] ...');
+            if (blob.size > maxBytes) {
+              setContent(`${text}\n\n... [Preview truncated for performance. Download to see full file] ...`);
             } else {
               setContent(text);
             }
           }
         } else {
-           throw new Error("Preview is not supported for this file format.");
+          throw new Error('Preview is not supported for this file format.');
         }
       } catch (err) {
         console.error('Preview error:', err);
@@ -75,35 +87,34 @@ function FilePreview({ url, format }: { url: string, format: string }) {
       }
     };
 
-    // Minor delay to ensure ref is attached if docx is rendering
     setTimeout(loadPreview, 0);
 
-    return () => { isMounted = false; };
+    return () => {
+      isMounted = false;
+    };
   }, [url, format]);
 
   if (errorMsg) {
     return (
-      <div className="w-full bg-red-500/10 border border-red-500/30 text-red-200 p-6 rounded-2xl flex flex-col items-center justify-center text-center gap-3 shadow-[0_8px_30px_rgba(0,0,0,0.5)]">
-        <AlertCircle className="w-8 h-8 text-red-400" />
-        <div>
-          <h4 className="font-bold text-red-100 mb-1">Preview Unavailable</h4>
-          <p className="text-sm">{errorMsg}</p>
-          <p className="text-xs text-red-300 mt-2">You can still download the file using the download button above.</p>
-        </div>
+      <div className="w-full rounded-[1.5rem] border border-rose-400/30 bg-rose-500/10 p-6 text-center text-rose-100 shadow-[0_20px_60px_rgba(20,10,30,0.28)]">
+        <AlertCircle className="mx-auto mb-3 h-8 w-8 text-rose-300" />
+        <h4 className="mb-1 text-base font-bold">Preview unavailable</h4>
+        <p className="text-sm text-rose-100/90">{errorMsg}</p>
+        <p className="mt-2 text-xs uppercase tracking-[0.24em] text-rose-200/75">Download is still available</p>
       </div>
     );
   }
 
   if (content === 'image') {
-    return <img src={url} alt="Preview" className="max-w-full h-auto mx-auto rounded-2xl shadow-[0_8px_30px_rgba(0,0,0,0.5)] border border-white/20" />;
+    return <img src={url} alt="Preview" className="mx-auto h-auto max-w-full rounded-[1.5rem] border border-white/15 shadow-[0_20px_60px_rgba(20,10,30,0.28)]" />;
   }
 
   if (content === 'pdf') {
-    return <iframe src={`${url}#toolbar=0`} className="w-full h-[600px] rounded-2xl border border-white/20 shadow-[0_8px_30px_rgba(0,0,0,0.5)] bg-black/60 backdrop-blur-xl" title="PDF Preview" />;
+    return <iframe src={`${url}#toolbar=0`} className="h-[600px] w-full rounded-[1.5rem] border border-white/15 bg-black/40 shadow-[0_20px_60px_rgba(20,10,30,0.28)]" title="PDF Preview" />;
   }
 
   if (content === 'docx') {
-    return <div ref={containerRef} className="w-full min-h-[600px] bg-white text-black backdrop-blur-xl rounded-2xl overflow-auto docx-preview-container border border-white/20 shadow-[0_8px_30px_rgba(0,0,0,0.5)] p-8" />;
+    return <div ref={containerRef} className="docx-preview-container min-h-[600px] w-full overflow-auto rounded-[1.5rem] border border-white/15 bg-white p-8 text-black shadow-[0_20px_60px_rgba(20,10,30,0.28)]" />;
   }
 
   if (['txt', 'csv', 'json', 'md', 'html', 'xml', 'yaml'].includes(format)) {
@@ -116,11 +127,11 @@ function FilePreview({ url, format }: { url: string, format: string }) {
     if (format === 'yaml') language = 'yaml';
 
     return (
-      <div className="w-full max-h-[600px] overflow-auto rounded-2xl shadow-[0_8px_30px_rgba(0,0,0,0.5)] border border-white/20">
+      <div className="w-full max-h-[600px] overflow-auto rounded-[1.5rem] border border-white/15 shadow-[0_20px_60px_rgba(20,10,30,0.28)]">
         <SyntaxHighlighter
           language={language}
           style={vscDarkPlus}
-          customStyle={{ margin: 0, padding: '1.5rem', minHeight: '100%', background: 'rgba(15, 23, 42, 0.9)' }}
+          customStyle={{ margin: 0, padding: '1.5rem', minHeight: '100%', background: 'rgba(14, 18, 38, 0.95)' }}
           wrapLines={true}
           wrapLongLines={true}
         >
@@ -131,73 +142,94 @@ function FilePreview({ url, format }: { url: string, format: string }) {
   }
 
   return (
-    <div className="w-full max-h-[600px] overflow-auto bg-[#0f172a]/90 backdrop-blur-2xl text-indigo-100 p-6 rounded-2xl font-mono text-sm whitespace-pre-wrap shadow-[0_8px_30px_rgba(0,0,0,0.5)] border border-white/20 flex items-center justify-center">
+    <div className="flex w-full items-center justify-center rounded-[1.5rem] border border-white/15 bg-slate-950/80 p-6 font-mono text-sm text-slate-100 shadow-[0_20px_60px_rgba(20,10,30,0.28)]">
       {content || 'Loading preview...'}
     </div>
   );
 }
 
 const CATEGORIES = [
-  { 
-    id: 'universal', 
-    label: 'Universal', 
-    icon: Sparkles, 
-    accept: undefined, 
-    description: 'Auto-detects any supported file',
-    color: 'text-cyan-300',
-    bg: 'bg-cyan-500/20',
-    border: 'border-cyan-400/50'
+  {
+    id: 'universal',
+    label: 'Universal',
+    icon: Sparkles,
+    accept: undefined,
+    description: 'Auto-detect any supported file',
+    color: 'text-sky-200',
+    accent: 'from-sky-400/60 via-fuchsia-400/40 to-violet-500/60',
+    surface: 'bg-sky-400/15',
+    border: 'border-sky-300/50',
   },
-  { 
-    id: 'images', 
-    label: 'Images', 
-    icon: ImageIcon, 
-    accept: {'image/*': ['.png', '.jpg', '.jpeg', '.webp', '.bmp', '.gif', '.svg', '.ico']}, 
-    description: 'Convert between image formats',
-    color: 'text-pink-300',
-    bg: 'bg-pink-500/20',
-    border: 'border-pink-400/50'
+  {
+    id: 'images',
+    label: 'Images',
+    icon: ImageIcon,
+    accept: { 'image/*': ['.png', '.jpg', '.jpeg', '.webp', '.bmp', '.gif', '.svg', '.ico'] },
+    description: 'Portraits, icons, scenes, stickers',
+    color: 'text-pink-200',
+    accent: 'from-pink-400/70 via-rose-400/50 to-orange-400/60',
+    surface: 'bg-pink-400/15',
+    border: 'border-pink-300/50',
   },
-  { 
-    id: 'documents', 
-    label: 'Documents', 
-    icon: FileText, 
+  {
+    id: 'documents',
+    label: 'Documents',
+    icon: FileText,
     accept: {
-      'application/pdf': ['.pdf'], 
-      'application/vnd.openxmlformats-officedocument.wordprocessingml.document': ['.docx'], 
-      'text/plain': ['.txt'], 
+      'application/pdf': ['.pdf'],
+      'application/vnd.openxmlformats-officedocument.wordprocessingml.document': ['.docx'],
+      'text/plain': ['.txt'],
       'text/markdown': ['.md'],
-      'text/html': ['.html']
-    }, 
-    description: 'PDF, Word, TXT, HTML, Markdown',
-    color: 'text-indigo-300',
-    bg: 'bg-indigo-500/20',
-    border: 'border-indigo-400/50'
+      'text/html': ['.html'],
+    },
+    description: 'PDF, DOCX, text, markdown',
+    color: 'text-violet-200',
+    accent: 'from-violet-400/70 via-indigo-400/50 to-sky-400/60',
+    surface: 'bg-violet-400/15',
+    border: 'border-violet-300/50',
   },
-  { 
-    id: 'data', 
-    label: 'Data', 
-    icon: Database, 
+  {
+    id: 'data',
+    label: 'Data',
+    icon: Database,
     accept: {
-      'application/json': ['.json'], 
-      'text/csv': ['.csv'], 
+      'application/json': ['.json'],
+      'text/csv': ['.csv'],
       'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet': ['.xlsx'],
       'application/xml': ['.xml'],
-      'text/yaml': ['.yaml', '.yml']
-    }, 
-    description: 'JSON, CSV, Excel, XML, YAML',
-    color: 'text-emerald-300',
-    bg: 'bg-emerald-500/20',
-    border: 'border-emerald-400/50'
-  }
-];
+      'text/yaml': ['.yaml', '.yml'],
+    },
+    description: 'Structured files and sheets',
+    color: 'text-emerald-200',
+    accent: 'from-emerald-400/70 via-cyan-400/45 to-teal-400/60',
+    surface: 'bg-emerald-400/15',
+    border: 'border-emerald-300/50',
+  },
+] as const;
 
 const getFormatPills = (catId: string) => {
-  switch(catId) {
-    case 'images': return ['PNG', 'JPG', 'WEBP', 'BMP', 'GIF', 'SVG', 'ICO'];
-    case 'documents': return ['PDF', 'DOCX', 'TXT', 'MD', 'HTML'];
-    case 'data': return ['JSON', 'CSV', 'XLSX', 'XML', 'YAML'];
-    default: return ['PDF', 'JPG', 'DOCX', 'JSON', 'CSV', '...'];
+  switch (catId) {
+    case 'images':
+      return ['PNG', 'JPG', 'WEBP', 'BMP', 'GIF', 'SVG', 'ICO'];
+    case 'documents':
+      return ['PDF', 'DOCX', 'TXT', 'MD', 'HTML'];
+    case 'data':
+      return ['JSON', 'CSV', 'XLSX', 'XML', 'YAML'];
+    default:
+      return ['PDF', 'JPG', 'DOCX', 'JSON', 'CSV', 'XLSX'];
+  }
+};
+
+const getCategoryExtensions = (catId: string) => {
+  switch (catId) {
+    case 'images':
+      return ['png', 'jpg', 'jpeg', 'webp', 'bmp', 'gif', 'svg', 'ico'];
+    case 'documents':
+      return ['pdf', 'docx', 'txt', 'txt (OCR)', 'md', 'html'];
+    case 'data':
+      return ['json', 'csv', 'xlsx', 'xml', 'yaml', 'yml'];
+    default:
+      return [];
   }
 };
 
@@ -220,28 +252,22 @@ export default function App() {
   const [useOcrForPdf, setUseOcrForPdf] = useState(false);
   const [isConvertingAny, setIsConvertingAny] = useState(false);
   const [isZipping, setIsZipping] = useState(false);
-  const [theme, setTheme] = useState('dark');
+  const [theme, setTheme] = useState('night');
   const [showAbout, setShowAbout] = useState(false);
 
   useEffect(() => {
-    if (theme === 'light') {
-      document.documentElement.setAttribute('data-theme', 'light');
-    } else {
-      document.documentElement.removeAttribute('data-theme');
-    }
+    document.documentElement.setAttribute('data-theme', theme);
   }, [theme]);
 
-  // Global Progress Logic
-  const filesToConvert = files.filter(f => f.status !== 'success');
-  const numConverting = files.filter(f => f.status === 'converting').length;
+  const filesToConvert = files.filter((file) => file.status !== 'success');
+  const numConverting = files.filter((file) => file.status === 'converting').length;
   const isMultipleConverting = filesToConvert.length > 1 && numConverting > 0;
-  
+
   let globalProgress = 0;
   if (isMultipleConverting) {
-    const totalProgress = filesToConvert.reduce((acc, f) => {
-      if (f.status === 'success') return acc + 100;
-      if (f.status === 'error') return acc + 100; // Count errors as finished to not stall bar
-      if (f.status === 'converting') return acc + (f.progress || 0);
+    const totalProgress = filesToConvert.reduce((acc, file) => {
+      if (file.status === 'success' || file.status === 'error') return acc + 100;
+      if (file.status === 'converting') return acc + (file.progress || 0);
       return acc;
     }, 0);
     globalProgress = totalProgress / filesToConvert.length;
@@ -255,94 +281,96 @@ export default function App() {
 
     const updatedFiles = [...files];
 
-    await Promise.all(updatedFiles.map(async (fileItem, index) => {
-      if (fileItem.status === 'success' || !fileItem.targetFormat || fileItem.status === 'converting') return;
+    await Promise.all(
+      updatedFiles.map(async (fileItem, index) => {
+        if (fileItem.status === 'success' || !fileItem.targetFormat || fileItem.status === 'converting') return;
 
-      // Optimistic update
-      setFiles(current => {
-        const next = [...current];
-        if (next[index] && next[index].status === 'idle') {
+        setFiles((current) => {
+          const next = [...current];
+          if (next[index] && next[index].status === 'idle') {
             next[index] = { ...next[index], status: 'converting', error: undefined };
-        }
-        return next;
-      });
+          }
+          return next;
+        });
 
-      try {
-        const { blob, filename } = await convertFile(fileItem.file, fileItem.targetFormat, { 
-          useOcr: useOcrForPdf,
-          onProgress: (p) => {
-            setFiles(current => {
-              const next = [...current];
-              if (next[index]) {
-                next[index] = { ...next[index], progress: p };
-              }
-              return next;
-            });
-          }
-        });
-        const url = URL.createObjectURL(blob);
-        
-        setFiles(current => {
-          const next = [...current];
-          if (next[index]) {
-            next[index] = { ...next[index], status: 'success', convertedUrl: url, convertedName: filename, _blob: blob } as any;
-          }
-          return next;
-        });
-      } catch (err) {
-        setFiles(current => {
-          const next = [...current];
-          if (next[index]) {
-            next[index] = { ...next[index], status: 'error', error: err instanceof Error ? err.message : 'Unknown error' };
-          }
-          return next;
-        });
-      }
-    }));
+        try {
+          const { blob, filename } = await convertFile(fileItem.file, fileItem.targetFormat, {
+            useOcr: useOcrForPdf,
+            onProgress: (progress) => {
+              setFiles((current) => {
+                const next = [...current];
+                if (next[index]) {
+                  next[index] = { ...next[index], progress };
+                }
+                return next;
+              });
+            },
+          });
+          const url = URL.createObjectURL(blob);
+
+          setFiles((current) => {
+            const next = [...current];
+            if (next[index]) {
+              next[index] = { ...next[index], status: 'success', convertedUrl: url, convertedName: filename, _blob: blob } as any;
+            }
+            return next;
+          });
+        } catch (err) {
+          setFiles((current) => {
+            const next = [...current];
+            if (next[index]) {
+              next[index] = { ...next[index], status: 'error', error: err instanceof Error ? err.message : 'Unknown error' };
+            }
+            return next;
+          });
+        }
+      }),
+    );
 
     setIsConvertingAny(false);
   };
 
+  const activeCatData = CATEGORIES.find((category) => category.id === activeCategory)!;
 
-  const activeCatData = CATEGORIES.find(c => c.id === activeCategory)!;
-
-  const onDrop = useCallback((acceptedFiles: File[], rejectedFiles: any[]) => {
-    if (rejectedFiles.length > 0) {
-      setError(`Some files were skipped. Maybe unsupported in ${activeCatData.label} mode.`);
-    }
-    
-    const newFiles: FileItem[] = [];
-    for (const f of acceptedFiles) {
-      const ext = getExtension(f.name);
-      if (SUPPORTED_FORMATS[ext]) {
-        newFiles.push({
-          id: Math.random().toString(36).substring(7),
-          file: f,
-          targetFormat: SUPPORTED_FORMATS[ext][0] || '',
-          status: 'idle'
-        });
+  const onDrop = useCallback(
+    (acceptedFiles: File[], rejectedFiles: any[]) => {
+      if (rejectedFiles.length > 0) {
+        setError(`Some files were skipped because they do not fit ${activeCatData.label.toLowerCase()} mode.`);
       }
-    }
-    
-    if (newFiles.length > 0) {
-      setFiles(prev => [...prev, ...newFiles]);
-      setError(null);
-    }
-  }, [activeCatData.label]);
+
+      const newFiles: FileItem[] = [];
+      for (const file of acceptedFiles) {
+        const ext = getExtension(file.name);
+        if (SUPPORTED_FORMATS[ext]) {
+          newFiles.push({
+            id: Math.random().toString(36).substring(7),
+            file,
+            targetFormat: SUPPORTED_FORMATS[ext][0] || '',
+            status: 'idle',
+          });
+        }
+      }
+
+      if (newFiles.length > 0) {
+        setFiles((prev) => [...prev, ...newFiles]);
+        setError(null);
+      }
+    },
+    [activeCatData.label],
+  );
 
   const { getRootProps, getInputProps, isDragActive, isDragAccept, isDragReject } = useDropzone({
     onDrop,
     accept: activeCatData.accept,
-    maxFiles: 0, // no limit
+    maxFiles: 0,
     multiple: true,
   });
 
-
   const handleDownloadAll = async () => {
-    const successFiles: { name: string, blob: Blob }[] = [];
-    files.forEach(f => {
-      if (f.status === 'success' && f.convertedName && (f as any)._blob) {
-        successFiles.push({ name: f.convertedName, blob: (f as any)._blob });
+    const successFiles: { name: string; blob: Blob }[] = [];
+    files.forEach((file) => {
+      if (file.status === 'success' && file.convertedName && (file as any)._blob) {
+        successFiles.push({ name: file.convertedName, blob: (file as any)._blob });
       }
     });
 
@@ -352,12 +380,12 @@ export default function App() {
     try {
       const zipBlob = await zipFiles(successFiles);
       const url = URL.createObjectURL(zipBlob);
-      const a = document.createElement('a');
-      a.href = url;
-      a.download = `FilefluxConvert_Files_${Date.now()}.zip`;
-      document.body.appendChild(a);
-      a.click();
-      document.body.removeChild(a);
+      const anchor = document.createElement('a');
+      anchor.href = url;
+      anchor.download = `FileFlux_${Date.now()}.zip`;
+      document.body.appendChild(anchor);
+      anchor.click();
+      document.body.removeChild(anchor);
       setTimeout(() => URL.revokeObjectURL(url), 100);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to zip files');
@@ -367,8 +395,8 @@ export default function App() {
   };
 
   const handleReset = () => {
-    files.forEach(f => {
-      if (f.convertedUrl) URL.revokeObjectURL(f.convertedUrl);
+    files.forEach((file) => {
+      if (file.convertedUrl) URL.revokeObjectURL(file.convertedUrl);
     });
     setFiles([]);
     setError(null);
@@ -376,39 +404,41 @@ export default function App() {
   };
 
   const handleResetFile = (id: string) => {
-    setFiles(current => current.map(f => {
-      if (f.id === id) {
-        if (f.convertedUrl) URL.revokeObjectURL(f.convertedUrl);
-        return {
-          ...f,
-          status: 'idle',
-          convertedUrl: undefined,
-          convertedName: undefined,
-          _blob: undefined,
-          showPreview: false,
-          error: undefined
-        };
-      }
-      return f;
-    }));
+    setFiles((current) =>
+      current.map((file) => {
+        if (file.id === id) {
+          if (file.convertedUrl) URL.revokeObjectURL(file.convertedUrl);
+          return {
+            ...file,
+            status: 'idle',
+            convertedUrl: undefined,
+            convertedName: undefined,
+            _blob: undefined,
+            showPreview: false,
+            error: undefined,
+          };
+        }
+        return file;
+      }),
+    );
   };
 
   const removeFile = (id: string) => {
-    setFiles(prev => {
-      const fileToRm = prev.find(f => f.id === id);
-      if (fileToRm?.convertedUrl) {
-        URL.revokeObjectURL(fileToRm.convertedUrl);
+    setFiles((prev) => {
+      const fileToRemove = prev.find((file) => file.id === id);
+      if (fileToRemove?.convertedUrl) {
+        URL.revokeObjectURL(fileToRemove.convertedUrl);
       }
-      return prev.filter(f => f.id !== id);
+      return prev.filter((file) => file.id !== id);
     });
   };
 
   const updateFormat = (id: string, format: string) => {
-    setFiles(prev => prev.map(f => f.id === id ? { ...f, targetFormat: format, status: 'idle', convertedUrl: undefined } : f));
+    setFiles((prev) => prev.map((file) => (file.id === id ? { ...file, targetFormat: format, status: 'idle', convertedUrl: undefined } : file)));
   };
-  
+
   const togglePreview = (id: string) => {
-    setFiles(prev => prev.map(f => f.id === id ? { ...f, showPreview: !f.showPreview } : f));
+    setFiles((prev) => prev.map((file) => (file.id === id ? { ...file, showPreview: !file.showPreview } : file)));
   };
 
   const formatBytes = (bytes: number, decimals = 2) => {
@@ -420,580 +450,471 @@ export default function App() {
     return `${parseFloat((bytes / Math.pow(k, i)).toFixed(dm))} ${sizes[i]}`;
   };
 
+  const pendingCount = files.filter((file) => file.status === 'idle' || file.status === 'error').length;
+  const finishedCount = files.filter((file) => file.status === 'success' || file.status === 'error').length;
+  const successfulCount = files.filter((file) => file.status === 'success').length;
+
   return (
-    <div className="min-h-screen bg-slate-950 text-slate-100 font-sans selection:bg-cyan-500/40 flex flex-col relative overflow-hidden">
-      
-      {/* Clean Dark Mode Background */}
-      <div className="fixed inset-0 z-0 pointer-events-none">
-        <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_top,_var(--tw-gradient-stops))] from-slate-900 via-slate-950 to-slate-950" />
-        <div className="absolute top-[10%] left-[20%] w-[50%] h-[30%] bg-cyan-500/5 blur-[120px] rounded-full mix-blend-screen" />
-        <div className="absolute bottom-[20%] right-[10%] w-[40%] h-[40%] bg-indigo-500/5 blur-[130px] rounded-full mix-blend-screen" />
+    <div className="anime-shell min-h-screen overflow-hidden text-[var(--text-primary)]">
+      <div className="anime-bg pointer-events-none">
+        <div className="anime-orb anime-orb-a" />
+        <div className="anime-orb anime-orb-b" />
+        <div className="anime-orb anime-orb-c" />
+        <div className="anime-grid" />
       </div>
 
-      {/* Navbar */}
-      <header className="bg-slate-900/50 backdrop-blur-xl border-b border-white/5 sticky top-0 z-50">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between">
-          <div className="flex items-center gap-3">
-            <div className="bg-gradient-to-br from-cyan-400 to-indigo-500 p-2 rounded-xl shadow-[0_0_15px_rgba(34,211,238,0.4)]">
-              <Layers className="w-5 h-5 text-white" />
+      <div className="relative z-10 mx-auto flex min-h-screen w-full max-w-[1440px] flex-col px-4 py-4 sm:px-6 lg:px-8">
+        <header className="anime-panel sticky top-4 z-40 mb-6 rounded-[2rem] px-5 py-4">
+          <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
+            <div className="flex items-center gap-4">
+              <div className="anime-badge-box">
+                <Layers className="h-6 w-6" />
+              </div>
+              <div>
+                <p className="text-[0.68rem] font-bold uppercase tracking-[0.36em] text-[var(--text-soft)]">Local conversion studio</p>
+                <h1 className="font-display text-2xl font-extrabold tracking-[0.08em] text-white sm:text-3xl">FileFlux</h1>
+              </div>
             </div>
-            <h1 className="text-xl font-bold tracking-tight text-white drop-shadow-[0_2px_4px_rgba(0,0,0,0.5)]">
-              FilefluxConvert
-            </h1>
-          </div>
-          <div className="flex items-center gap-3">
-            <button 
-              onClick={() => setTheme(t => t === 'dark' ? 'light' : 'dark')}
-              className="p-2 rounded-full border border-white/10 hover:bg-white/10 text-slate-300 hover:text-white transition-colors mr-2 shadow-[0_4px_12px_rgba(0,0,0,0.2)]"
-              title={theme === 'dark' ? "Switch to Light Mode" : "Switch to Dark Mode"}
-            >
-              {theme === 'dark' ? <Sun className="w-5 h-5" /> : <Moon className="w-5 h-5" />}
-            </button>
-            <button 
-              onClick={() => setShowAbout(true)}
-              className="text-sm flex items-center gap-2 font-bold text-slate-200 hover:text-white transition-colors bg-white/5 hover:bg-white/10 px-4 py-2 rounded-full border border-white/10 shadow-[0_4px_12px_rgba(0,0,0,0.2)]"
-            >
-              <HelpCircle className="w-4 h-4" />
-              What is FilefluxConvert?
-            </button>
-          </div>
-        </div>
-        
-        {/* Global Progress Bar for Batch Conversions */}
-        <AnimatePresence>
-          {isMultipleConverting && (
-            <motion.div
-              initial={{ height: 0, opacity: 0 }}
-              animate={{ height: 4, opacity: 1 }}
-              exit={{ height: 0, opacity: 0 }}
-              className="w-full bg-black/50"
-            >
-              <div 
-                className="h-full bg-gradient-to-r from-cyan-400 to-indigo-500 shadow-[0_0_15px_rgba(34,211,238,0.8)] transition-all duration-300 ease-out" 
-                style={{ width: `${globalProgress}%` }} 
-              />
-            </motion.div>
-          )}
-        </AnimatePresence>
-      </header>
 
-      <main className="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-8 md:py-12 flex flex-col lg:flex-row gap-8 relative z-10">
-        
-        {/* Sidebar Categories */}
-        <aside className="w-full lg:w-72 shrink-0">
-          <div className="sticky top-24 space-y-6">
-            <div className="bg-[#0f172a]/40 backdrop-blur-xl border border-white/10 rounded-[2rem] p-4 shadow-[0_8px_32px_rgba(0,0,0,0.4)]">
-              <h2 className="text-xs font-bold text-indigo-300/80 uppercase tracking-wider mb-4 px-3">Conversion Types</h2>
-              <div className="space-y-2">
-                {CATEGORIES.map(cat => (
+            <div className="flex flex-wrap items-center gap-3">
+              <div className="anime-chip">
+                <Shield className="h-4 w-4" />
+                Private by design
+              </div>
+              <div className="anime-chip">
+                <WandSparkles className="h-4 w-4" />
+                Batch-ready workflow
+              </div>
+              <button
+                onClick={() => setTheme((current) => (current === 'night' ? 'sunrise' : 'night'))}
+                className="anime-icon-button"
+                title={theme === 'night' ? 'Switch to sunrise mode' : 'Switch to night mode'}
+              >
+                {theme === 'night' ? <Sun className="h-5 w-5" /> : <Moon className="h-5 w-5" />}
+              </button>
+              <button onClick={() => setShowAbout(true)} className="anime-cta-secondary">
+                <HelpCircle className="h-4 w-4" />
+                About FileFlux
+              </button>
+            </div>
+          </div>
+
+          <AnimatePresence>
+            {isMultipleConverting && (
+              <motion.div initial={{ opacity: 0, y: -8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -8 }} className="mt-4">
+                <div className="overflow-hidden rounded-full bg-white/8">
+                  <div className="h-2 rounded-full bg-gradient-to-r from-fuchsia-400 via-cyan-300 to-amber-300 transition-all duration-300" style={{ width: `${globalProgress}%` }} />
+                </div>
+              </motion.div>
+            )}
+          </AnimatePresence>
+        </header>
+
+        <main className="grid flex-1 gap-6 lg:grid-cols-[300px_minmax(0,1fr)]">
+          <aside className="space-y-6">
+            <section className="anime-panel rounded-[2rem] p-5">
+              <div className="mb-4 flex items-center justify-between">
+                <div>
+                  <p className="text-[0.68rem] font-bold uppercase tracking-[0.3em] text-[var(--text-soft)]">Choose mode</p>
+                  <h2 className="font-display text-xl font-bold text-white">Conversion paths</h2>
+                </div>
+                <Sparkles className="h-5 w-5 text-fuchsia-200" />
+              </div>
+              <div className="space-y-3">
+                {CATEGORIES.map((category) => (
                   <button
-                    key={cat.id}
-                    onClick={() => { setActiveCategory(cat.id); handleReset(); }}
-                    className={cn(
-                      "w-full flex items-center gap-3 px-4 py-3.5 rounded-2xl text-left transition-all duration-300",
-                      activeCategory === cat.id 
-                        ? "bg-white/10 shadow-[0_4px_20px_rgba(0,0,0,0.2)] border border-white/20 scale-[1.02]" 
-                        : "hover:bg-white/5 text-indigo-200 border border-transparent"
-                    )}
+                    key={category.id}
+                    onClick={() => {
+                      setActiveCategory(category.id);
+                      handleReset();
+                    }}
+                    className={cn('anime-category-card', activeCategory === category.id && 'anime-category-card-active')}
                   >
-                    <div className={cn("p-2.5 rounded-xl transition-colors shadow-inner", activeCategory === cat.id ? cat.bg : "bg-white/5")}>
-                      <cat.icon className={cn("w-5 h-5", activeCategory === cat.id ? cat.color : "text-indigo-400")} />
+                    <div className={cn('anime-category-icon bg-gradient-to-br', category.accent)}>
+                      <category.icon className={cn('h-5 w-5', category.color)} />
                     </div>
-                    <div>
-                      <div className={cn("font-bold text-sm", activeCategory === cat.id ? "text-white" : "text-indigo-100")}>{cat.label}</div>
-                      <div className="text-xs font-medium text-indigo-300/70 mt-0.5">{cat.description}</div>
+                    <div className="min-w-0 text-left">
+                      <div className="font-display text-base font-bold text-white">{category.label}</div>
+                      <div className="text-sm text-[var(--text-muted)]">{category.description}</div>
                     </div>
                   </button>
                 ))}
               </div>
-            </div>
-          </div>
-        </aside>
+            </section>
 
-        {/* Main Content Area */}
-        <div className="flex-1 min-w-0">
-          <div className="bg-[#0f172a]/50 backdrop-blur-2xl rounded-[2.5rem] shadow-[0_8px_32px_rgba(0,0,0,0.5)] border border-white/10 overflow-hidden min-h-[600px] flex flex-col relative">
-            
-            <div className="relative flex-1 p-6 md:p-10 flex flex-col">
+            <section className="anime-panel rounded-[2rem] p-5">
+              <p className="mb-2 text-[0.68rem] font-bold uppercase tracking-[0.3em] text-[var(--text-soft)]">Status deck</p>
+              <div className="grid gap-3 sm:grid-cols-3 lg:grid-cols-1">
+                <div className="anime-stat-card">
+                  <span className="anime-stat-label">Queued</span>
+                  <strong className="anime-stat-value">{pendingCount}</strong>
+                </div>
+                <div className="anime-stat-card">
+                  <span className="anime-stat-label">Finished</span>
+                  <strong className="anime-stat-value">{finishedCount}</strong>
+                </div>
+                <div className="anime-stat-card">
+                  <span className="anime-stat-label">Ready</span>
+                  <strong className="anime-stat-value">{successfulCount}</strong>
+                </div>
+              </div>
+            </section>
+          </aside>
+
+          <section className="anime-panel relative overflow-hidden rounded-[2.2rem]">
+            <div className="anime-panel-glow" />
+            <div className="relative flex h-full flex-col p-5 sm:p-7 lg:p-8">
+              <div className="mb-6 flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
+                <div className="max-w-2xl">
+                  <p className="text-[0.72rem] font-bold uppercase tracking-[0.35em] text-[var(--text-soft)]">Anime-inspired interface</p>
+                  <h2 className="font-display text-3xl font-extrabold leading-tight text-white sm:text-4xl">
+                    Turn chaotic file stacks into a clean, neon workflow.
+                  </h2>
+                  <p className="mt-3 max-w-xl text-sm leading-7 text-[var(--text-muted)] sm:text-base">
+                    Drag files into the stage, choose the output, then preview and download each result without leaving the browser.
+                  </p>
+                </div>
+                <div className="anime-hero-pills">
+                  {getFormatPills(activeCategory).map((format) => (
+                    <span key={format} className="anime-pill">
+                      {format}
+                    </span>
+                  ))}
+                </div>
+              </div>
+
+              {error && (
+                <div className="mb-5 rounded-[1.4rem] border border-rose-300/35 bg-rose-500/10 px-4 py-3 text-sm text-rose-100">
+                  {error}
+                </div>
+              )}
+
               <ErrorBoundary>
                 <AnimatePresence mode="wait">
-                {files.length === 0 ? (
-                  <motion.div
-                    key="upload"
-                    initial={{ opacity: 0, y: 5 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    exit={{ opacity: 0, y: -5 }}
-                    transition={{ duration: 0.2 }}
-                    className="flex-1 flex flex-col relative"
-                  >
-                          <div
-                            {...getRootProps()}
-                            className={cn(
-                              "relative flex-1 border-2 border-dashed rounded-[2rem] p-8 md:p-12 text-center cursor-pointer transition-all duration-500 ease-out flex flex-col items-center justify-center min-h-[400px] shadow-[inset_0_2px_20px_rgba(0,0,0,0.3)] overflow-hidden group",
-                              isDragReject ? "border-red-400 bg-red-900/20 scale-[0.98]" :
-                              isDragAccept ? "border-cyan-400 bg-cyan-900/30 scale-[0.98]" :
-                              isDragActive 
-                                ? `${activeCatData.border} ${activeCatData.bg} scale-[0.98] border-opacity-100` 
-                                : "border-white/20 bg-white/5 hover:bg-white/10 hover:border-white/40 hover:shadow-[inset_0_2px_30px_rgba(255,255,255,0.05)]"
-                            )}
-                          >
+                  {files.length === 0 ? (
+                    <motion.div key="dropzone" initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -8 }} className="flex flex-1 flex-col">
+                      <div
+                        {...getRootProps()}
+                        className={cn(
+                          'anime-dropzone group flex min-h-[520px] flex-1 cursor-pointer flex-col items-center justify-center overflow-hidden rounded-[2rem] border p-8 text-center transition-all duration-300 sm:p-10',
+                          isDragReject && 'border-rose-300/60 bg-rose-500/10',
+                          isDragAccept && 'border-cyan-300/70 bg-cyan-400/12',
+                          isDragActive && !isDragReject && activeCatData.border,
+                        )}
+                      >
+                        <input {...getInputProps()} />
+                        <div className="anime-speedlines" />
+                        <motion.div
+                          animate={isDragActive ? { scale: [1, 1.08, 1], rotate: [0, -3, 3, 0] } : { y: [0, -8, 0] }}
+                          transition={isDragActive ? { duration: 0.9, repeat: Infinity } : { duration: 4, repeat: Infinity, ease: 'easeInOut' }}
+                          className={cn('anime-drop-icon bg-gradient-to-br', activeCatData.accent)}
+                        >
+                          {isDragReject ? <AlertCircle className="h-16 w-16 text-rose-200" /> : isDragAccept ? <CheckCircle2 className="h-16 w-16 text-cyan-100" /> : <activeCatData.icon className={cn('h-16 w-16', activeCatData.color)} />}
+                        </motion.div>
+
+                        <div className="relative z-10 max-w-2xl">
+                          <p className="mb-3 text-[0.74rem] font-bold uppercase tracking-[0.42em] text-[var(--text-soft)]">Drop zone</p>
+                          <h3 className="font-display text-4xl font-extrabold tracking-[0.06em] text-white sm:text-5xl">
+                            {isDragReject ? 'That file does not match this mode.' : isDragAccept ? 'Release to queue the files.' : 'Drop files into the portal.'}
+                          </h3>
+                          <p className="mx-auto mt-4 max-w-xl text-base leading-8 text-[var(--text-muted)]">
+                            {isDragReject
+                              ? `Switch the mode or choose a compatible format for ${activeCatData.label.toLowerCase()}.`
+                              : 'Tap or drag files here to prepare a local conversion batch with previews, downloads, and optional OCR for PDFs.'}
+                          </p>
+                        </div>
+
+                        <div className="relative z-10 mt-8 flex flex-wrap justify-center gap-3">
+                          {getFormatPills(activeCategory).map((format) => (
+                            <span key={format} className="anime-pill">
+                              {format}
+                            </span>
+                          ))}
+                        </div>
+                      </div>
+                    </motion.div>
+                  ) : (
+                    <motion.div key="queue" initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} className="flex flex-1 flex-col">
+                      <div className="mb-5 flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
+                        <div>
+                          <p className="text-[0.72rem] font-bold uppercase tracking-[0.32em] text-[var(--text-soft)]">Current queue</p>
+                          <h3 className="font-display text-2xl font-bold text-white">Files in motion: {files.length}</h3>
+                        </div>
+                        <div className="flex flex-wrap gap-3">
+                          <div {...getRootProps()} className="cursor-pointer">
                             <input {...getInputProps()} />
-                            
-                            {/* Animated Background Ring when Active */}
-                            <AnimatePresence>
-                              {isDragActive && !isDragReject && (
-                                <motion.div 
-                                  initial={{ opacity: 0, scale: 0.5 }}
-                                  animate={{ opacity: 1, scale: 1 }}
-                                  exit={{ opacity: 0, scale: 0.5 }}
-                                  transition={{ duration: 0.5 }}
-                                  className="absolute inset-0 flex items-center justify-center z-0 pointer-events-none"
-                                >
-                                  <motion.div 
-                                     className="w-[300px] h-[300px] sm:w-[400px] sm:h-[400px] rounded-full border border-cyan-500/30 bg-cyan-500/5 blur-xl"
-                                     animate={{ scale: [1, 1.4], opacity: [0.8, 0] }}
-                                     transition={{ duration: 1.5, repeat: Infinity, ease: "easeOut" }}
-                                  />
-                                  <motion.div 
-                                     className="absolute w-[200px] h-[200px] sm:w-[300px] sm:h-[300px] rounded-full border border-cyan-400/40 bg-cyan-400/5 blur-lg"
-                                     animate={{ scale: [1, 1.4], opacity: [0.8, 0] }}
-                                     transition={{ duration: 1.5, repeat: Infinity, ease: "easeOut", delay: 0.3 }}
-                                  />
-                                </motion.div>
-                              )}
-                            </AnimatePresence>
+                            <button className="anime-cta-secondary">
+                              <Plus className="h-4 w-4" />
+                              Add files
+                            </button>
+                          </div>
+                          <button onClick={handleReset} className="anime-danger-button">
+                            <X className="h-4 w-4" />
+                            Clear queue
+                          </button>
+                        </div>
+                      </div>
 
-                            <div className="relative z-10 flex flex-col items-center">
-                              <motion.div 
-                                animate={isDragActive ? { scale: [1, 1.15, 1], rotate: [0, -5, 5, 0] } : { y: [0, -6, 0] }}
-                                transition={isDragActive ? { duration: 0.8, repeat: Infinity } : { duration: 4, repeat: Infinity, ease: "easeInOut" }}
-                                className={cn(
-                                "w-28 h-28 sm:w-32 sm:h-32 mb-6 rounded-[2rem] flex items-center justify-center shadow-[0_15px_40px_rgba(0,0,0,0.4)] border border-white/20 backdrop-blur-xl relative transition-colors duration-300", 
-                                isDragAccept ? "bg-cyan-500/40 border-cyan-400/60 shadow-[0_0_50px_rgba(34,211,238,0.3)]" :
-                                isDragReject ? "bg-red-500/40 border-red-400/60 shadow-[0_0_50px_rgba(248,113,113,0.3)]" :
-                                "bg-[#1e293b]/80 group-hover:bg-[#1e293b]"
-                              )}>
-                                {isDragActive && !isDragReject && (
-                                  <motion.div className="absolute inset-0 rounded-[2rem] bg-cyan-400/20 blur-xl" animate={{ opacity: [0.5, 1, 0.5] }} transition={{ duration: 1.5, repeat: Infinity }} />
-                                )}
-                                {isDragReject ? (
-                                  <AlertCircle className="w-14 h-14 sm:w-16 sm:h-16 text-red-400 drop-shadow-[0_0_12px_rgba(248,113,113,0.8)] relative z-10" />
-                                ) : isDragAccept ? (
-                                  <CheckCircle2 className="w-14 h-14 sm:w-16 sm:h-16 text-cyan-400 drop-shadow-[0_0_12px_rgba(34,211,238,0.8)] relative z-10" />
-                                ) : (
-                                  <activeCatData.icon className={cn("w-14 h-14 sm:w-16 sm:h-16 relative z-10 transition-transform duration-300 group-hover:scale-110", activeCatData.color, "drop-shadow-[0_2px_12px_rgba(0,0,0,0.6)]")} />
-                                )}
-                              </motion.div>
-                              <h3 className={cn(
-                                "text-3xl sm:text-4xl font-bold mb-4 transition-colors duration-300 drop-shadow-md tracking-tight",
-                                isDragReject ? "text-red-400" :
-                                isDragAccept ? "text-cyan-400" :
-                                "text-white"
-                              )}>
-                                {isDragReject ? "File type not supported!" : 
-                                 isDragAccept ? "Drop to upload!" : 
-                                 isDragActive ? "Drop it like it's hot!" : 
-                                 `Upload ${activeCatData.label}`}
-                              </h3>
-                              <p className={cn(
-                                "font-medium max-w-sm mx-auto mb-10 transition-colors duration-300 text-lg drop-shadow-sm",
-                                isDragReject ? "text-red-300" :
-                                isDragAccept ? "text-cyan-300" :
-                                "text-indigo-200"
-                              )}>
-                                {isDragReject ? `Please select a valid file for ${activeCatData.label} mode.` :
-                                 isDragAccept ? "Release to start conversion." :
-                                 "Drag and drop your files here, or click to browse from your computer."}
-                              </p>
-                              
-                              {/* Format pills */}
-                              <div className="flex flex-wrap justify-center gap-2.5">
-                                {getFormatPills(activeCategory).map(fmt => (
-                                  <span key={fmt} className="px-5 py-2 bg-black/40 backdrop-blur-md border border-white/10 rounded-xl text-sm font-bold text-indigo-100 shadow-[0_4px_12px_rgba(0,0,0,0.5)]">
-                                    {fmt}
-                                  </span>
-                                ))}
-                              </div>
-                            </div>
-                          </div>
-                  </motion.div>
-                ) : (
-                  <motion.div
-                    key="config"
-                    initial={{ opacity: 0, y: 5 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    className="flex-1 flex flex-col"
-                  >
-                          <div className="flex justify-between items-center mb-6">
-                            <h3 className="text-xl font-bold text-white drop-shadow-md flex items-center">
-                              <Layers className="w-6 h-6 mr-3 text-cyan-400 drop-shadow-[0_0_8px_rgba(34,211,238,0.5)]" />
-                              Your Files ({files.length})
-                            </h3>
-                            <div className="flex gap-3">
-                              <div {...getRootProps()} className="cursor-pointer">
-                                <input {...getInputProps()} />
-                                <button className="px-5 py-3 bg-white/10 hover:bg-white/20 border border-white/20 rounded-xl text-sm font-bold text-white shadow-lg transition-all flex items-center gap-2">
-                                  <Plus className="w-4 h-4" /> Add Files
-                                </button>
-                              </div>
-                              <button onClick={handleReset} className="px-5 py-3 bg-red-500/20 hover:bg-red-500/30 border border-red-500/30 text-red-300 rounded-xl text-sm font-bold shadow-lg transition-all flex items-center gap-2">
-                                Clear All
-                              </button>
-                            </div>
-                          </div>
-                          
-                          <div className="space-y-4 mb-8 max-h-[50vh] overflow-y-auto pr-2 custom-scrollbar">
-                            <AnimatePresence>
-                              {files.map(fileItem => {
-                                const getCategoryExtensions = (catId: string) => {
-                                  switch (catId) {
-                                    case 'images': return ['png', 'jpg', 'jpeg', 'webp', 'bmp', 'gif', 'svg', 'ico'];
-                                    case 'documents': return ['pdf', 'docx', 'txt', 'txt (OCR)', 'md', 'html'];
-                                    case 'data': return ['json', 'csv', 'xlsx', 'xml', 'yaml', 'yml'];
-                                    default: return [];
-                                  }
-                                };
-                                const ext = getExtension(fileItem.file.name);
-                                const allAvailable = SUPPORTED_FORMATS[ext] || [];
-                                const available = activeCategory === 'universal'
-                                  ? allAvailable
-                                  : allAvailable.filter(fmt => getCategoryExtensions(activeCategory).includes(fmt));
-                                
-                                return (
-                                  <motion.div
-                                    layout="position"
-                                    variants={{
-                                      hidden: { opacity: 0, y: 20 },
-                                      visible: { opacity: 1, y: 0 }
-                                    }}
-                                    initial="hidden"
-                                    animate="visible"
-                                    exit={{ opacity: 0, scale: 0.95, transition: { duration: 0.15 } }}
-                                    transition={{ type: "tween", duration: 0.3, ease: "easeOut" }}
-                                    key={fileItem.id}
-                                    className={cn(
-                                      "relative backdrop-blur-xl rounded-2xl border overflow-hidden transition-all duration-500",
-                                      fileItem.status === 'converting' ? "bg-[#1e293b]/80 border-cyan-400/50 shadow-[0_0_20px_rgba(34,211,238,0.15)]" :
-                                      fileItem.status === 'success' ? "bg-[#0f1b33]/60 border-emerald-500/30 shadow-[0_8px_20px_rgba(0,0,0,0.3)]" :
-                                      fileItem.status === 'error' ? "bg-red-950/20 border-red-500/30 shadow-[0_8px_20px_rgba(0,0,0,0.3)]" :
-                                      "bg-[#1e293b]/60 border-white/10 shadow-[0_8px_20px_rgba(0,0,0,0.3)]"
-                                    )}
-                                  >
-                                    {/* Sweeping progress gradient for converting items */}
-                                    {fileItem.status === 'converting' && (
-                                      <>
-                                        <motion.div
-                                          className="absolute inset-0 bg-gradient-to-r from-transparent via-cyan-400/10 to-transparent skew-x-[-20deg]"
-                                          initial={{ x: '-150%' }}
-                                          animate={{ x: '150%' }}
-                                          transition={{ duration: 1.5, repeat: Infinity, ease: 'linear' }}
-                                        />
-                                        <div className="absolute bottom-0 left-0 h-1 bg-cyan-400 border-t border-cyan-300 shadow-[0_0_10px_rgba(34,211,238,0.8)] transition-all duration-300 ease-out" style={{ width: `${fileItem.progress || 0}%` }} />
-                                      </>
-                                    )}
-                                    {/* Success Glow effect */}
-                                    {fileItem.status === 'success' && (
-                                       <motion.div
-                                        className="absolute inset-0 bg-emerald-400/10"
-                                        initial={{ opacity: 1 }}
-                                        animate={{ opacity: 0 }}
-                                        transition={{ duration: 1 }}
-                                       />
-                                    )}
-                                    
-                                    <div className="flex flex-col sm:flex-row items-center p-5 gap-4 relative z-10 w-full overflow-hidden">
-                                      <motion.div 
-                                        animate={fileItem.status === 'converting' ? { scale: [1, 1.05, 1] } : {}}
-                                        transition={{ duration: 1, repeat: Infinity }}
-                                        className={cn("w-14 h-14 rounded-2xl flex items-center justify-center shrink-0 shadow-[inset_0_2px_10px_rgba(0,0,0,0.5)] border border-white/10 relative z-20", activeCatData.bg)}
-                                      >
-                                         <File className={cn("w-7 h-7 drop-shadow-md", activeCatData.color)} />
-                                      </motion.div>
-                                      
-                                      <div className="flex-1 min-w-0 w-full relative z-20">
-                                        <p className="text-base font-bold text-indigo-50 truncate drop-shadow-sm">
-                                          {fileItem.file.name}
-                                        </p>
-                                        <div className="flex flex-wrap items-center gap-3 mt-1 text-sm">
-                                          <span className="font-medium text-indigo-300/80">
-                                            {formatBytes(fileItem.file.size)} • {ext.toUpperCase()}
-                                          </span>
-                                          {fileItem.status === 'converting' && (
-                                            <span className="flex items-center text-cyan-400 font-bold text-xs">
-                                              <RefreshCw className="w-3 h-3 mr-1 animate-spin" /> 
-                                              Converting {fileItem.progress !== undefined ? `${fileItem.progress}%` : ''}
-                                            </span>
-                                          )}
-                                          {fileItem.status === 'success' && (
-                                            <span className="flex items-center text-emerald-400 font-bold text-xs"><CheckCircle2 className="w-3 h-3 mr-1 drop-shadow-[0_0_5px_rgba(52,211,153,0.5)]" /> Success</span>
-                                          )}
-                                          {fileItem.status === 'error' && (
-                                            <span className="flex items-center text-red-400 font-bold text-xs truncate max-w-[200px]"><AlertCircle className="w-3 h-3 mr-1" /> {fileItem.error}</span>
-                                          )}
-                                        </div>
-                                      </div>
-                                      
-                                      <div className="flex items-center gap-3 w-full sm:w-auto mt-4 sm:mt-0 justify-end relative z-20">
-                                        {fileItem.status === 'idle' || fileItem.status === 'error' ? (
-                                          <div className="flex items-center gap-3 bg-black/40 p-1.5 rounded-xl border border-white/10 shadow-inner">
-                                            <span className="text-xs font-bold text-indigo-400 uppercase px-2 drop-shadow-sm">To</span>
-                                            <select
-                                              value={fileItem.targetFormat}
-                                              onChange={(e) => updateFormat(fileItem.id, e.target.value)}
-                                              className="bg-transparent font-bold text-white focus:outline-none cursor-pointer text-sm [&>option]:bg-slate-800"
-                                            >
-                                              {available.map(fmt => (
-                                                <option key={fmt} value={fmt}>{fmt.toUpperCase()}</option>
-                                              ))}
-                                            </select>
-                                          </div>
-                                        ) : fileItem.status === 'success' && fileItem.convertedUrl ? (
-                                          <div className="flex gap-2">
-                                            <button
-                                              onClick={() => handleResetFile(fileItem.id)}
-                                              className="p-2.5 bg-white/10 hover:bg-white/20 text-indigo-200 border-white/10 rounded-xl font-bold transition-all shadow-lg border"
-                                              title="Reconvert back to original file"
-                                            >
-                                              <RotateCcw className="w-5 h-5 pointer-events-none" />
-                                            </button>
-                                            <button
-                                              onClick={() => togglePreview(fileItem.id)}
-                                              className={cn("p-2.5 rounded-xl font-bold transition-all shadow-lg border", fileItem.showPreview ? "bg-cyan-500/20 text-cyan-300 border-cyan-400/50" : "bg-white/10 hover:bg-white/20 text-indigo-200 border-white/10")}
-                                              title="Preview the extracted file contents"
-                                            >
-                                              <Eye className="w-5 h-5 pointer-events-none" />
-                                            </button>
-                                            <a
-                                              href={fileItem.convertedUrl}
-                                              download={fileItem.convertedName}
-                                              className="p-2.5 bg-gradient-to-r from-cyan-500 to-indigo-500 hover:from-cyan-400 hover:to-indigo-400 text-white rounded-xl font-bold transition-all shadow-[0_4px_15px_rgba(34,211,238,0.3)] hover:-translate-y-0.5 border border-white/20"
-                                              title="Download the converted file"
-                                            >
-                                              <Download className="w-5 h-5 pointer-events-none" />
-                                            </a>
-                                          </div>
-                                        ) : null}
-                                        
-                                        <button
-                                          onClick={() => removeFile(fileItem.id)}
-                                          className="p-2.5 text-indigo-400/50 hover:text-red-400 hover:bg-white/10 rounded-xl transition-all"
-                                          disabled={isConvertingAny}
-                                          title="Remove this file from the list"
-                                        >
-                                          <X className="w-5 h-5 pointer-events-none" />
-                                        </button>
-                                      </div>
-                                    </div>
-                                    
-                                    <AnimatePresence>
-                                      {fileItem.showPreview && fileItem.convertedUrl && fileItem.status === 'success' && (
-                                        <motion.div
-                                          initial={{ height: 0, opacity: 0 }}
-                                          animate={{ height: 'auto', opacity: 1 }}
-                                          exit={{ height: 0, opacity: 0 }}
-                                          transition={{ duration: 0.3, ease: 'easeInOut' }}
-                                          className="border-t border-white/10 bg-black/30 p-6 overflow-hidden"
-                                        >
-                                          <div className="mb-4 flex items-center justify-between">
-                                            <h4 className="text-sm font-bold text-indigo-200 drop-shadow-sm">Preview: {fileItem.convertedName}</h4>
-                                          </div>
-                                          <FilePreview url={fileItem.convertedUrl} format={fileItem.targetFormat} />
-                                        </motion.div>
-                                      )}
-                                    </AnimatePresence>
-                                  </motion.div>
-                                );
-                              })}
-                            </AnimatePresence>
-                          </div>
-                          
-                          {/* Needs OCR Option */}
-                          {files.some(f => getExtension(f.file.name) === 'pdf' && (f.targetFormat === 'docx' || f.targetFormat === 'txt') && (f.status === 'idle' || f.status === 'error')) && (activeCategory === 'documents' || activeCategory === 'universal') && (
-                            <div className="mb-8 flex items-start gap-4 p-5 bg-[#1e293b]/60 rounded-2xl border border-white/10 shadow-[0_4px_15px_rgba(0,0,0,0.3)]">
-                              <div className="flex items-center h-6 mt-0.5">
-                                <input
-                                  type="checkbox"
-                                  id="useOcr"
-                                  checked={useOcrForPdf}
-                                  onChange={(e) => setUseOcrForPdf(e.target.checked)}
-                                  className="w-5 h-5 rounded border-white/20 text-cyan-500 focus:ring-cyan-500/50 bg-black/40 transition-colors cursor-pointer shadow-inner"
-                                />
-                              </div>
-                              <label htmlFor="useOcr" className="text-sm text-indigo-200 cursor-pointer select-none">
-                                <span className="font-bold text-white block mb-1 text-base drop-shadow-sm">Use OCR Text Extraction for PDF</span>
-                                Slower, but significantly better for scanned PDFs or documents with complex layouts. Works for converting to DOCX and TXT.
-                              </label>
-                            </div>
-                          )}
+                      <div className="anime-file-list mb-6 flex-1 space-y-4 overflow-y-auto pr-1">
+                        <AnimatePresence>
+                          {files.map((fileItem) => {
+                            const ext = getExtension(fileItem.file.name);
+                            const allAvailable = SUPPORTED_FORMATS[ext] || [];
+                            const available =
+                              activeCategory === 'universal'
+                                ? allAvailable
+                                : allAvailable.filter((format) => getCategoryExtensions(activeCategory).includes(format));
 
-                          {/* Overall Progress Bar during conversion */}
-                          <AnimatePresence>
-                            {isConvertingAny && (
+                            return (
                               <motion.div
-                                initial={{ opacity: 0, height: 0, overflow: 'hidden' }}
-                                animate={{ opacity: 1, height: 'auto', overflow: 'visible' }}
-                                exit={{ opacity: 0, height: 0, overflow: 'hidden' }}
-                                transition={{ duration: 0.3 }}
-                                className="mb-6"
+                                key={fileItem.id}
+                                layout="position"
+                                initial={{ opacity: 0, y: 16 }}
+                                animate={{ opacity: 1, y: 0 }}
+                                exit={{ opacity: 0, scale: 0.96 }}
+                                transition={{ duration: 0.22 }}
+                                className={cn(
+                                  'anime-file-card overflow-hidden rounded-[1.7rem] border',
+                                  fileItem.status === 'converting' && 'border-cyan-300/45 bg-cyan-400/8',
+                                  fileItem.status === 'success' && 'border-emerald-300/40 bg-emerald-400/8',
+                                  fileItem.status === 'error' && 'border-rose-300/40 bg-rose-400/8',
+                                )}
                               >
-                                <div className="bg-[#1e293b]/80 backdrop-blur-md rounded-2xl border border-cyan-500/30 p-5 shadow-[0_0_20px_rgba(34,211,238,0.1)] relative overflow-hidden">
-                                  {/* Dynamic Background Pulse */}
-                                  <motion.div 
-                                    className="absolute inset-0 bg-gradient-to-r from-cyan-500/10 to-indigo-500/10"
-                                    animate={{ opacity: [0.3, 0.8, 0.3] }}
-                                    transition={{ duration: 2, repeat: Infinity, ease: "easeInOut" }}
-                                  />
-                                  <div className="relative z-10 flex justify-between items-center mb-3">
-                                    <div className="flex items-center gap-3 text-cyan-400">
-                                      <RefreshCw className="w-5 h-5 animate-spin drop-shadow-[0_0_8px_rgba(34,211,238,0.8)]" />
-                                      <span className="font-bold tracking-tight text-white drop-shadow-sm">Converting Files...</span>
-                                    </div>
-                                    <div className="text-sm font-bold text-cyan-200 bg-cyan-900/40 px-3 py-1 rounded-full border border-cyan-400/20">
-                                      {files.filter(f => f.status === 'success' || f.status === 'error').length} / {files.length}
-                                    </div>
-                                  </div>
-                                  <div className="relative z-10 h-3 w-full bg-black/40 rounded-full overflow-hidden border border-white/5 shadow-[inset_0_2px_4px_rgba(0,0,0,0.6)]">
-                                    <motion.div 
-                                      className="absolute inset-y-0 left-0 bg-gradient-to-r from-cyan-500 to-indigo-500 rounded-full shadow-[0_0_10px_rgba(34,211,238,0.7)]"
-                                      initial={{ width: '0%' }}
-                                      animate={{ width: `${Math.max(5, (files.filter(f => f.status === 'success' || f.status === 'error').length / files.length) * 100)}%` }}
-                                      transition={{ type: 'spring', stiffness: 60, damping: 15 }}
-                                    >
+                                <div className="relative p-4 sm:p-5">
+                                  {fileItem.status === 'converting' && (
+                                    <>
                                       <motion.div
-                                        className="absolute inset-0 bg-gradient-to-r from-transparent via-white/30 to-transparent skew-x-[-20deg]"
-                                        initial={{ x: '-150%' }}
-                                        animate={{ x: '150%' }}
+                                        className="absolute inset-0 bg-[linear-gradient(110deg,transparent,rgba(125,211,252,0.12),transparent)]"
+                                        initial={{ x: '-120%' }}
+                                        animate={{ x: '120%' }}
                                         transition={{ duration: 1.2, repeat: Infinity, ease: 'linear' }}
                                       />
-                                    </motion.div>
-                                  </div>
-                                </div>
-                              </motion.div>
-                            )}
-                          </AnimatePresence>
-
-                          {/* Action Buttons */}
-                          <div className="mt-auto">
-                            {!files.every(f => f.status === 'success') && (
-                              <button
-                                onClick={handleConvert}
-                                disabled={isConvertingAny || files.every(f => f.status === 'success' || f.status === 'converting')}
-                                className={cn(
-                                  "w-full py-4 px-6 rounded-2xl font-bold text-white flex items-center justify-center transition-all duration-300 shadow-xl",
-                                  isConvertingAny || files.every(f => f.status === 'success' || f.status === 'converting')
-                                    ? "bg-slate-700/50 shadow-none cursor-not-allowed text-slate-300 backdrop-blur-md border border-white/5"
-                                    : "bg-gradient-to-r from-cyan-500 to-indigo-500 hover:from-cyan-400 hover:to-indigo-400 hover:-translate-y-1 shadow-[0_8px_25px_rgba(34,211,238,0.4)] border border-white/20"
-                                )}
-                              >
-                                {isConvertingAny ? (
-                                  <>
-                                    <RefreshCw className="w-6 h-6 mr-3 animate-spin drop-shadow-md" />
-                                    Converting Batch...
-                                  </>
-                                ) : (
-                                  <>
-                                    <Sparkles className="w-6 h-6 mr-2 drop-shadow-md" />
-                                    Convert {files.filter(f => f.status === 'idle' || f.status === 'error').length} Files
-                                  </>
-                                )}
-                              </button>
-                            )}
-                            
-                            {files.every(f => f.status === 'success') && files.length > 0 && (
-                              <div className="flex flex-col sm:flex-row gap-4 items-stretch sm:items-center">
-                                <div className="p-5 bg-emerald-500/20 backdrop-blur-xl border border-emerald-400/40 rounded-2xl flex items-center text-emerald-100 shadow-[0_8px_30px_rgba(16,185,129,0.3)] flex-1">
-                                  <div className="w-12 h-12 rounded-xl bg-emerald-400/30 flex items-center justify-center mr-4 shrink-0 border border-emerald-300/50">
-                                    <CheckCircle2 className="w-7 h-7 text-emerald-300 drop-shadow-[0_0_8px_rgba(52,211,153,0.8)]" />
-                                  </div>
-                                  <div>
-                                    <p className="font-bold text-lg text-emerald-50 drop-shadow-md">Batch Conversion Successful!</p>
-                                    <p className="text-sm font-medium text-emerald-200 mt-0.5">You can download files individually above.</p>
-                                  </div>
-                                </div>
-                                <button
-                                  onClick={handleDownloadAll}
-                                  disabled={isZipping}
-                                  className="p-5 bg-gradient-to-r from-cyan-500 to-indigo-500 hover:from-cyan-400 hover:to-indigo-400 text-white rounded-2xl font-bold transition-all shadow-[0_8px_25px_rgba(34,211,238,0.4)] flex items-center justify-center hover:-translate-y-1 border border-white/20 whitespace-nowrap"
-                                >
-                                  {isZipping ? (
-                                    <>
-                                      <RefreshCw className="w-6 h-6 mr-3 animate-spin drop-shadow-md" />
-                                      Zipping...
-                                    </>
-                                  ) : (
-                                    <>
-                                      <Download className="w-6 h-6 mr-3 drop-shadow-md" />
-                                      Download All (.zip)
+                                      <div className="absolute bottom-0 left-0 h-1 bg-gradient-to-r from-cyan-300 to-fuchsia-300 transition-all duration-300" style={{ width: `${fileItem.progress || 0}%` }} />
                                     </>
                                   )}
-                                </button>
+
+                                  <div className="relative z-10 flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+                                    <div className="flex min-w-0 gap-4">
+                                      <div className="anime-file-icon">
+                                        <File className="h-6 w-6 text-white" />
+                                      </div>
+                                      <div className="min-w-0">
+                                        <div className="truncate font-display text-lg font-bold text-white">{fileItem.file.name}</div>
+                                        <div className="mt-1 flex flex-wrap gap-x-4 gap-y-1 text-sm text-[var(--text-muted)]">
+                                          <span>{formatBytes(fileItem.file.size)}</span>
+                                          <span>{ext.toUpperCase() || 'FILE'}</span>
+                                        </div>
+                                        <div className="mt-3 flex flex-wrap items-center gap-3 text-xs font-bold uppercase tracking-[0.24em]">
+                                          {fileItem.status === 'idle' && <span className="text-[var(--text-soft)]">Ready</span>}
+                                          {fileItem.status === 'converting' && <span className="text-cyan-200">Converting {Math.round(fileItem.progress || 0)}%</span>}
+                                          {fileItem.status === 'success' && <span className="text-emerald-200">Converted</span>}
+                                          {fileItem.status === 'error' && <span className="max-w-full truncate text-rose-200">{fileItem.error}</span>}
+                                        </div>
+                                      </div>
+                                    </div>
+
+                                    <div className="flex flex-wrap items-center justify-end gap-3">
+                                      {(fileItem.status === 'idle' || fileItem.status === 'error') && (
+                                        <div className="anime-format-picker">
+                                          <span className="text-[0.68rem] font-bold uppercase tracking-[0.24em] text-[var(--text-soft)]">To</span>
+                                          <select
+                                            value={fileItem.targetFormat}
+                                            onChange={(event) => updateFormat(fileItem.id, event.target.value)}
+                                            className="bg-transparent text-sm font-bold text-white outline-none [&>option]:bg-slate-900"
+                                          >
+                                            {available.map((format) => (
+                                              <option key={format} value={format}>
+                                                {format.toUpperCase()}
+                                              </option>
+                                            ))}
+                                          </select>
+                                        </div>
+                                      )}
+
+                                      {fileItem.status === 'success' && fileItem.convertedUrl && (
+                                        <div className="flex flex-wrap gap-2">
+                                          <button onClick={() => handleResetFile(fileItem.id)} className="anime-icon-button" title="Convert this file again">
+                                            <RotateCcw className="h-5 w-5" />
+                                          </button>
+                                          <button
+                                            onClick={() => togglePreview(fileItem.id)}
+                                            className={cn('anime-icon-button', fileItem.showPreview && 'border-cyan-300/50 bg-cyan-300/15 text-cyan-100')}
+                                            title="Toggle preview"
+                                          >
+                                            <Eye className="h-5 w-5" />
+                                          </button>
+                                          <a href={fileItem.convertedUrl} download={fileItem.convertedName} className="anime-icon-button anime-download-button" title="Download converted file">
+                                            <Download className="h-5 w-5" />
+                                          </a>
+                                        </div>
+                                      )}
+
+                                      <button onClick={() => removeFile(fileItem.id)} className="anime-icon-button" disabled={isConvertingAny} title="Remove file">
+                                        <X className="h-5 w-5" />
+                                      </button>
+                                    </div>
+                                  </div>
+                                </div>
+
+                                <AnimatePresence>
+                                  {fileItem.showPreview && fileItem.convertedUrl && fileItem.status === 'success' && (
+                                    <motion.div initial={{ height: 0, opacity: 0 }} animate={{ height: 'auto', opacity: 1 }} exit={{ height: 0, opacity: 0 }} transition={{ duration: 0.28 }} className="border-t border-white/10 bg-black/15 p-4 sm:p-6">
+                                      <div className="mb-4 flex items-center justify-between">
+                                        <h4 className="font-display text-lg font-bold text-white">Preview: {fileItem.convertedName}</h4>
+                                      </div>
+                                      <FilePreview url={fileItem.convertedUrl} format={fileItem.targetFormat} />
+                                    </motion.div>
+                                  )}
+                                </AnimatePresence>
+                              </motion.div>
+                            );
+                          })}
+                        </AnimatePresence>
+                      </div>
+
+                      {files.some((file) => getExtension(file.file.name) === 'pdf' && (file.targetFormat === 'docx' || file.targetFormat === 'txt') && (file.status === 'idle' || file.status === 'error')) &&
+                        (activeCategory === 'documents' || activeCategory === 'universal') && (
+                          <div className="mb-6 rounded-[1.6rem] border border-white/12 bg-white/6 p-4 sm:p-5">
+                            <label htmlFor="useOcr" className="flex cursor-pointer items-start gap-4">
+                              <input
+                                type="checkbox"
+                                id="useOcr"
+                                checked={useOcrForPdf}
+                                onChange={(event) => setUseOcrForPdf(event.target.checked)}
+                                className="mt-1 h-5 w-5 rounded border-white/20 bg-black/20"
+                              />
+                              <div>
+                                <div className="font-display text-lg font-bold text-white">Enable OCR boost for PDF text pulls</div>
+                                <p className="mt-1 text-sm leading-7 text-[var(--text-muted)]">
+                                  Best for scanned pages and dense layouts when converting PDF files into DOCX or TXT. It takes longer, but usually captures more text.
+                                </p>
                               </div>
-                            )}
+                            </label>
                           </div>
-                  </motion.div>
-                )}
-              </AnimatePresence>
+                        )}
+
+                      <AnimatePresence>
+                        {isConvertingAny && (
+                          <motion.div initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: 'auto' }} exit={{ opacity: 0, height: 0 }} className="mb-6 overflow-hidden">
+                            <div className="rounded-[1.6rem] border border-cyan-300/25 bg-cyan-400/8 p-5">
+                              <div className="mb-3 flex items-center justify-between gap-4">
+                                <div className="flex items-center gap-3 text-cyan-100">
+                                  <RefreshCw className="h-5 w-5 animate-spin" />
+                                  <span className="font-display text-lg font-bold">Converting batch</span>
+                                </div>
+                                <div className="rounded-full bg-white/10 px-3 py-1 text-sm text-[var(--text-muted)]">
+                                  {finishedCount} / {files.length}
+                                </div>
+                              </div>
+                              <div className="h-3 overflow-hidden rounded-full bg-black/20">
+                                <motion.div
+                                  className="h-full rounded-full bg-gradient-to-r from-fuchsia-400 via-cyan-300 to-amber-300"
+                                  initial={{ width: '0%' }}
+                                  animate={{ width: `${Math.max(5, (finishedCount / files.length) * 100)}%` }}
+                                  transition={{ type: 'spring', stiffness: 60, damping: 14 }}
+                                />
+                              </div>
+                            </div>
+                          </motion.div>
+                        )}
+                      </AnimatePresence>
+
+                      <div className="mt-auto">
+                        {!files.every((file) => file.status === 'success') && (
+                          <button onClick={handleConvert} disabled={isConvertingAny || files.every((file) => file.status === 'success' || file.status === 'converting')} className="anime-primary-button w-full">
+                            {isConvertingAny ? (
+                              <>
+                                <RefreshCw className="h-5 w-5 animate-spin" />
+                                Converting now
+                              </>
+                            ) : (
+                              <>
+                                <Sparkles className="h-5 w-5" />
+                                Convert {pendingCount} file{pendingCount === 1 ? '' : 's'}
+                              </>
+                            )}
+                          </button>
+                        )}
+
+                        {files.every((file) => file.status === 'success') && files.length > 0 && (
+                          <div className="flex flex-col gap-4 lg:flex-row lg:items-center">
+                            <div className="flex flex-1 items-center gap-4 rounded-[1.6rem] border border-emerald-300/30 bg-emerald-400/10 p-5">
+                              <div className="flex h-12 w-12 items-center justify-center rounded-[1.2rem] bg-emerald-300/20">
+                                <CheckCircle2 className="h-7 w-7 text-emerald-100" />
+                              </div>
+                              <div>
+                                <p className="font-display text-lg font-bold text-white">Batch complete</p>
+                                <p className="text-sm text-[var(--text-muted)]">Preview each result or download the whole set as a zip.</p>
+                              </div>
+                            </div>
+                            <button onClick={handleDownloadAll} disabled={isZipping} className="anime-primary-button lg:w-auto">
+                              {isZipping ? (
+                                <>
+                                  <RefreshCw className="h-5 w-5 animate-spin" />
+                                  Packing zip
+                                </>
+                              ) : (
+                                <>
+                                  <Download className="h-5 w-5" />
+                                  Download all
+                                </>
+                              )}
+                            </button>
+                          </div>
+                        )}
+                      </div>
+                    </motion.div>
+                  )}
+                </AnimatePresence>
               </ErrorBoundary>
             </div>
-          </div>
+          </section>
+        </main>
+      </div>
 
-
-
-        </div>
-      </main>
-
-      {/* About Modal */}
       <AnimatePresence>
         {showAbout && (
           <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
+            <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="absolute inset-0 bg-black/70 backdrop-blur-md" onClick={() => setShowAbout(false)} />
             <motion.div
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              exit={{ opacity: 0 }}
-              className="absolute inset-0 bg-black/60 backdrop-blur-md"
-              onClick={() => setShowAbout(false)}
-            />
-            <motion.div
-              initial={{ scale: 0.9, opacity: 0, y: 20 }}
-              animate={{ scale: 1, opacity: 1, y: 0 }}
-              exit={{ scale: 0.9, opacity: 0, y: 20 }}
-              className="relative bg-[#0f1b33] border border-white/20 shadow-[0_20px_60px_rgba(0,0,0,0.8)] rounded-3xl p-8 max-w-lg w-full z-10"
+              initial={{ opacity: 0, scale: 0.94, y: 20 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.94, y: 20 }}
+              className="anime-panel relative z-10 w-full max-w-xl rounded-[2rem] p-7"
             >
-              <div className="flex justify-between items-start mb-6">
-                <div className="flex items-center gap-3">
-                  <div className="bg-gradient-to-br from-cyan-400 to-indigo-500 p-2.5 rounded-xl shadow-[0_0_15px_rgba(34,211,238,0.4)]">
-                    <Layers className="w-6 h-6 text-white" />
+              <div className="mb-5 flex items-start justify-between gap-4">
+                <div className="flex items-center gap-4">
+                  <div className="anime-badge-box">
+                    <Layers className="h-6 w-6" />
                   </div>
-                  <h2 className="text-2xl font-bold text-white drop-shadow-md">About FilefluxConvert</h2>
+                  <div>
+                    <p className="text-[0.7rem] font-bold uppercase tracking-[0.32em] text-[var(--text-soft)]">About</p>
+                    <h2 className="font-display text-2xl font-extrabold text-white">FileFlux</h2>
+                  </div>
                 </div>
-                <button
-                  onClick={() => setShowAbout(false)}
-                  className="p-2 text-indigo-300 hover:text-white hover:bg-white/10 rounded-xl transition-colors shrink-0"
-                >
-                  <X className="w-6 h-6" />
+                <button onClick={() => setShowAbout(false)} className="anime-icon-button">
+                  <X className="h-5 w-5" />
                 </button>
               </div>
-              <div className="space-y-4 text-indigo-100/90 leading-relaxed text-sm">
+
+              <div className="space-y-4 text-sm leading-7 text-[var(--text-muted)] sm:text-base">
                 <p>
-                  <strong className="text-cyan-300">FilefluxConvert</strong> is a next-generation file conversion tool that runs entirely within your browser natively.
+                  <strong className="text-white">FileFlux</strong> is a browser-based file conversion workspace designed for quick format changes, previews, and bulk downloads.
                 </p>
                 <p>
-                  Unlike traditional cloud converters that require you to upload your sensitive data to mysterious servers, 
-                  FilefluxConvert utilizes advanced WebAssembly (Wasm) and native web APIs to securely process your files locally on your own machine.
+                  The app keeps the workflow local in your browser, so you can move between images, documents, and structured data without sending every file through a remote upload pipeline.
                 </p>
-                <ul className="space-y-2 mt-4 ml-2 list-disc list-inside">
-                  <li><strong>Limitless formats:</strong> Convert between images, PDFs, word docs, data arrays, and more.</li>
-                  <li><strong>Optical Character Recognition (OCR):</strong> Extract deep text from scanned PDFs flawlessly.</li>
-                  <li><strong>Total Privacy:</strong> Your files never leave your device. Zero cloud uploads.</li>
-                  <li><strong>Lightning Fast:</strong> Batch conversion relies on your device's multi-thread capabilities.</li>
+                <ul className="space-y-2">
+                  <li>Batch queue with per-file format controls</li>
+                  <li>Preview support for images, text files, PDFs, and DOCX outputs</li>
+                  <li>Optional OCR mode for difficult PDF extractions</li>
+                  <li>One-click zip download after the run finishes</li>
                 </ul>
               </div>
-              <div className="mt-8 pt-6 border-t border-white/10 flex justify-end">
-                <button
-                  onClick={() => setShowAbout(false)}
-                  className="px-6 py-2.5 bg-gradient-to-r from-cyan-500 to-indigo-500 hover:from-cyan-400 hover:to-indigo-400 text-white rounded-xl font-bold transition-all shadow-[0_4px_15px_rgba(34,211,238,0.3)] hover:-translate-y-0.5"
-                >
-                  Got it!
+
+              <div className="mt-6 flex justify-end">
+                <button onClick={() => setShowAbout(false)} className="anime-primary-button lg:w-auto">
+                  Back to the studio
                 </button>
               </div>
             </motion.div>
