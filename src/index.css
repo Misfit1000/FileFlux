@@ -1,32 +1,31 @@
-@import url("https://fonts.googleapis.com/css2?family=Outfit:wght@400;500;600;700;800&family=Space+Grotesk:wght@400;500;700&display=swap");
 @import "tailwindcss";
 
 :root {
-  --bg-base: #060814;
-  --bg-elevated: rgba(17, 21, 45, 0.74);
-  --bg-soft: rgba(255, 255, 255, 0.08);
-  --border-strong: rgba(255, 255, 255, 0.16);
-  --text-primary: #f8fbff;
-  --text-soft: rgba(196, 211, 255, 0.78);
-  --text-muted: rgba(226, 234, 255, 0.7);
-  --shadow-heavy: 0 28px 80px rgba(4, 8, 28, 0.46);
-  --accent-a: rgba(255, 72, 181, 0.32);
-  --accent-b: rgba(55, 220, 255, 0.24);
-  --accent-c: rgba(255, 186, 92, 0.22);
+  --bg-base: #06101f;
+  --bg-elevated: rgba(10, 26, 54, 0.74);
+  --bg-soft: rgba(180, 225, 255, 0.08);
+  --border-strong: rgba(174, 224, 255, 0.14);
+  --text-primary: #f3fbff;
+  --text-soft: rgba(176, 214, 242, 0.82);
+  --text-muted: rgba(216, 237, 250, 0.76);
+  --shadow-heavy: 0 28px 80px rgba(3, 10, 28, 0.5);
+  --accent-a: rgba(37, 105, 255, 0.3);
+  --accent-b: rgba(68, 210, 255, 0.24);
+  --accent-c: rgba(255, 220, 176, 0.16);
 }
 
 html[data-theme="sunrise"] {
-  --bg-base: #fff7f5;
-  --bg-elevated: rgba(255, 255, 255, 0.72);
-  --bg-soft: rgba(255, 255, 255, 0.58);
-  --border-strong: rgba(73, 45, 97, 0.12);
-  --text-primary: #241834;
-  --text-soft: rgba(90, 70, 110, 0.82);
-  --text-muted: rgba(70, 58, 90, 0.76);
-  --shadow-heavy: 0 28px 80px rgba(233, 152, 186, 0.26);
-  --accent-a: rgba(255, 111, 173, 0.28);
-  --accent-b: rgba(103, 187, 255, 0.24);
-  --accent-c: rgba(255, 190, 109, 0.2);
+  --bg-base: #f5fbff;
+  --bg-elevated: rgba(247, 252, 255, 0.74);
+  --bg-soft: rgba(255, 255, 255, 0.62);
+  --border-strong: rgba(43, 95, 138, 0.12);
+  --text-primary: #14314d;
+  --text-soft: rgba(53, 97, 136, 0.82);
+  --text-muted: rgba(58, 94, 122, 0.78);
+  --shadow-heavy: 0 28px 80px rgba(88, 167, 216, 0.22);
+  --accent-a: rgba(96, 165, 250, 0.22);
+  --accent-b: rgba(121, 214, 255, 0.2);
+  --accent-c: rgba(255, 208, 158, 0.18);
 }
 
 * {
@@ -42,18 +41,20 @@ body,
 body {
   margin: 0;
   background:
-    radial-gradient(circle at top left, rgba(255, 122, 185, 0.16), transparent 28%),
-    radial-gradient(circle at top right, rgba(88, 214, 255, 0.18), transparent 32%),
-    linear-gradient(180deg, rgba(8, 12, 28, 0.98) 0%, rgba(4, 6, 18, 1) 100%);
+    radial-gradient(circle at top left, rgba(55, 123, 255, 0.22), transparent 28%),
+    radial-gradient(circle at top right, rgba(69, 213, 255, 0.2), transparent 32%),
+    radial-gradient(circle at 50% 100%, rgba(255, 213, 170, 0.14), transparent 26%),
+    linear-gradient(180deg, #0a1b39 0%, #071226 42%, #040916 100%);
   color: var(--text-primary);
-  font-family: "Space Grotesk", "Segoe UI", sans-serif;
+  font-family: Inter, "Segoe UI", sans-serif;
 }
 
 html[data-theme="sunrise"] body {
   background:
-    radial-gradient(circle at top left, rgba(255, 140, 198, 0.22), transparent 32%),
-    radial-gradient(circle at top right, rgba(104, 200, 255, 0.18), transparent 28%),
-    linear-gradient(180deg, #fffaf7 0%, #fff3f2 48%, #ffe7ec 100%);
+    radial-gradient(circle at top left, rgba(134, 203, 255, 0.26), transparent 30%),
+    radial-gradient(circle at top right, rgba(141, 225, 255, 0.22), transparent 26%),
+    radial-gradient(circle at 50% 100%, rgba(255, 214, 178, 0.28), transparent 24%),
+    linear-gradient(180deg, #eff8ff 0%, #e4f2ff 48%, #fff4e8 100%);
 }
 
 button,
@@ -64,7 +65,7 @@ textarea {
 }
 
 .font-display {
-  font-family: "Outfit", "Space Grotesk", sans-serif;
+  font-family: "Segoe UI Semibold", Inter, "Segoe UI", sans-serif;
 }
 
 .anime-shell {
@@ -140,6 +141,18 @@ html[data-theme="sunrise"] .anime-grid {
   pointer-events: none;
 }
 
+.anime-sea-ribbon {
+  position: absolute;
+  inset: auto -10% 18% -10%;
+  height: 16rem;
+  background:
+    radial-gradient(circle at 50% 30%, rgba(255, 244, 220, 0.18), transparent 18%),
+    linear-gradient(180deg, rgba(103, 225, 255, 0.16), rgba(28, 79, 184, 0.06));
+  filter: blur(28px);
+  opacity: 0.75;
+  pointer-events: none;
+}
+
 .anime-badge-box,
 .anime-drop-icon,
 .anime-file-icon {
@@ -155,7 +168,7 @@ html[data-theme="sunrise"] .anime-grid {
   width: 3.2rem;
   height: 3.2rem;
   color: white;
-  background: linear-gradient(135deg, rgba(255, 106, 182, 0.8), rgba(92, 201, 255, 0.82));
+  background: linear-gradient(135deg, rgba(55, 135, 255, 0.88), rgba(103, 225, 255, 0.82));
 }
 
 .anime-drop-icon {
@@ -169,7 +182,7 @@ html[data-theme="sunrise"] .anime-grid {
 .anime-file-icon {
   width: 3.5rem;
   height: 3.5rem;
-  background: linear-gradient(135deg, rgba(255, 113, 168, 0.76), rgba(91, 198, 255, 0.72));
+  background: linear-gradient(135deg, rgba(44, 122, 255, 0.8), rgba(103, 225, 255, 0.72));
 }
 
 .anime-chip,
@@ -244,15 +257,15 @@ html[data-theme="sunrise"] .anime-grid {
   width: 100%;
   padding: 1rem 1.2rem;
   border: 1px solid rgba(255, 255, 255, 0.16);
-  background: linear-gradient(135deg, rgba(255, 95, 176, 0.95), rgba(104, 198, 255, 0.92));
+  background: linear-gradient(135deg, rgba(40, 114, 255, 0.96), rgba(99, 213, 255, 0.92), rgba(255, 216, 170, 0.92));
   color: white;
   font-weight: 800;
   letter-spacing: 0.03em;
-  box-shadow: 0 16px 40px rgba(70, 125, 255, 0.22);
+  box-shadow: 0 16px 40px rgba(39, 109, 240, 0.28);
 }
 
 .anime-download-button {
-  background: linear-gradient(135deg, rgba(255, 95, 176, 0.18), rgba(104, 198, 255, 0.18));
+  background: linear-gradient(135deg, rgba(40, 114, 255, 0.18), rgba(99, 213, 255, 0.18));
 }
 
 .anime-icon-button:hover,
@@ -308,6 +321,55 @@ html[data-theme="sunrise"] .anime-grid {
   padding: 1rem 1.1rem;
 }
 
+.anime-step-card,
+.anime-focus-card {
+  border-radius: 1.2rem;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  background: rgba(255, 255, 255, 0.05);
+}
+
+.anime-step-card {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.9rem;
+  padding: 0.95rem 1rem;
+}
+
+.anime-step-number {
+  display: inline-flex;
+  width: 1.9rem;
+  height: 1.9rem;
+  flex-shrink: 0;
+  align-items: center;
+  justify-content: center;
+  border-radius: 9999px;
+  background: linear-gradient(135deg, rgba(61, 127, 255, 0.92), rgba(110, 219, 255, 0.8));
+  color: white;
+  font-size: 0.82rem;
+  font-weight: 800;
+}
+
+.anime-focus-card {
+  padding: 1rem 1.1rem;
+  backdrop-filter: blur(12px);
+}
+
+.anime-focus-label {
+  display: block;
+  margin-bottom: 0.35rem;
+  color: var(--text-soft);
+  font-size: 0.7rem;
+  font-weight: 800;
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+}
+
+.anime-focus-value {
+  font-family: "Segoe UI Semibold", Inter, "Segoe UI", sans-serif;
+  font-size: 1.05rem;
+  color: white;
+}
+
 .anime-stat-label {
   display: block;
   margin-bottom: 0.35rem;
@@ -319,7 +381,7 @@ html[data-theme="sunrise"] .anime-grid {
 }
 
 .anime-stat-value {
-  font-family: "Outfit", sans-serif;
+  font-family: "Segoe UI Semibold", Inter, "Segoe UI", sans-serif;
   font-size: 2rem;
   line-height: 1;
   color: white;

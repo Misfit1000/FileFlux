@@ -23,11 +23,15 @@ import {
   WandSparkles,
 } from 'lucide-react';
 import { cn } from './lib/utils';
-import { SUPPORTED_FORMATS, getExtension, convertFile, zipFiles } from './lib/converters';
+import { SUPPORTED_FORMATS, getExtension, convertFile, convertPdfToDocxWithService, requiresHighFidelityServer, zipFiles, type ConversionMode } from './lib/converters';
 import { renderAsync } from 'docx-preview';
 import { ErrorBoundary } from './components/ErrorBoundary';
 import { Prism as SyntaxHighlighter } from 'react-syntax-highlighter';
 import { vscDarkPlus } from 'react-syntax-highlighter/dist/esm/styles/prism';
+
+const MAX_FILE_SIZE_BYTES = 50 * 1024 * 1024;
+const MAX_TOTAL_FILES = 24;
+const MAX_TOTAL_BATCH_BYTES = 250 * 1024 * 1024;
 
 function FilePreview({ url, format }: { url: string; format: string }) {
   const [content, setContent] = useState<string | null>(null);
@@ -155,8 +159,8 @@ const CATEGORIES = [
     icon: Sparkles,
     accept: undefined,
     description: 'Auto-detect any supported file',
-    color: 'text-sky-200',
-    accent: 'from-sky-400/60 via-fuchsia-400/40 to-violet-500/60',
+    color: 'text-cyan-100',
+    accent: 'from-cyan-300/70 via-sky-400/55 to-blue-500/70',
     surface: 'bg-sky-400/15',
     border: 'border-sky-300/50',
   },
@@ -166,10 +170,10 @@ const CATEGORIES = [
     icon: ImageIcon,
     accept: { 'image/*': ['.png', '.jpg', '.jpeg', '.webp', '.bmp', '.gif', '.svg', '.ico'] },
     description: 'Portraits, icons, scenes, stickers',
-    color: 'text-pink-200',
-    accent: 'from-pink-400/70 via-rose-400/50 to-orange-400/60',
-    surface: 'bg-pink-400/15',
-    border: 'border-pink-300/50',
+    color: 'text-sky-100',
+    accent: 'from-sky-300/70 via-blue-400/55 to-indigo-500/70',
+    surface: 'bg-sky-400/15',
+    border: 'border-sky-300/50',
   },
   {
     id: 'documents',
@@ -183,10 +187,10 @@ const CATEGORIES = [
       'text/html': ['.html'],
     },
     description: 'PDF, DOCX, text, markdown',
-    color: 'text-violet-200',
-    accent: 'from-violet-400/70 via-indigo-400/50 to-sky-400/60',
-    surface: 'bg-violet-400/15',
-    border: 'border-violet-300/50',
+    color: 'text-cyan-100',
+    accent: 'from-blue-400/70 via-cyan-300/55 to-sky-500/70',
+    surface: 'bg-blue-400/15',
+    border: 'border-blue-300/50',
   },
   {
     id: 'data',
@@ -200,10 +204,10 @@ const CATEGORIES = [
       'text/yaml': ['.yaml', '.yml'],
     },
     description: 'Structured files and sheets',
-    color: 'text-emerald-200',
-    accent: 'from-emerald-400/70 via-cyan-400/45 to-teal-400/60',
-    surface: 'bg-emerald-400/15',
-    border: 'border-emerald-300/50',
+    color: 'text-teal-100',
+    accent: 'from-teal-300/70 via-cyan-400/50 to-blue-500/65',
+    surface: 'bg-teal-400/15',
+    border: 'border-teal-300/50',
   },
 ] as const;
 
@@ -254,10 +258,26 @@ export default function App() {
   const [isZipping, setIsZipping] = useState(false);
   const [theme, setTheme] = useState('night');
   const [showAbout, setShowAbout] = useState(false);
+  const [pdfDocxMode, setPdfDocxMode] = useState<ConversionMode>('high-fidelity');
+  const filesRef = useRef<FileItem[]>([]);
 
   useEffect(() => {
     document.documentElement.setAttribute('data-theme', theme);
   }, [theme]);
+
+  useEffect(() => {
+    filesRef.current = files;
+  }, [files]);
+
+  useEffect(() => {
+    return () => {
+      filesRef.current.forEach((file) => {
+        if (file.convertedUrl) {
+          URL.revokeObjectURL(file.convertedUrl);
+        }
+      });
+    };
+  }, []);
 
   const filesToConvert = files.filter((file) => file.status !== 'success');
   const numConverting = files.filter((file) => file.status === 'converting').length;
@@ -294,9 +314,9 @@ export default function App() {
         });
 
         try {
-          const { blob, filename } = await convertFile(fileItem.file, fileItem.targetFormat, {
+          const conversionOptions = {
             useOcr: useOcrForPdf,
-            onProgress: (progress) => {
+            onProgress: (progress: number) => {
               setFiles((current) => {
                 const next = [...current];
                 if (next[index]) {
@@ -305,7 +325,28 @@ export default function App() {
                 return next;
               });
             },
-          });
+          };
+
+          const shouldUseHighFidelity = pdfDocxMode === 'high-fidelity' && requiresHighFidelityServer(fileItem.file, fileItem.targetFormat);
+
+          let conversionResult;
+
+          if (shouldUseHighFidelity) {
+            try {
+              conversionResult = await convertPdfToDocxWithService(fileItem.file, conversionOptions);
+            } catch (serviceError) {
+              setError(
+                serviceError instanceof Error
+                  ? `${serviceError.message} Falling back to the local converter for ${fileItem.file.name}.`
+                  : `High-fidelity conversion is unavailable. Falling back to the local converter for ${fileItem.file.name}.`,
+              );
+              conversionResult = await convertFile(fileItem.file, fileItem.targetFormat, conversionOptions);
+            }
+          } else {
+            conversionResult = await convertFile(fileItem.file, fileItem.targetFormat, conversionOptions);
+          }
+
+          const { blob, filename } = conversionResult;
           const url = URL.createObjectURL(blob);
 
           setFiles((current) => {
@@ -334,29 +375,65 @@ export default function App() {
 
   const onDrop = useCallback(
     (acceptedFiles: File[], rejectedFiles: any[]) => {
+      const nextErrors: string[] = [];
+      const existingKeys = new Set(files.map((file) => `${file.file.name}:${file.file.size}:${file.file.lastModified}`));
+      const totalBytesInQueue = files.reduce((sum, file) => sum + file.file.size, 0);
+
       if (rejectedFiles.length > 0) {
-        setError(`Some files were skipped because they do not fit ${activeCatData.label.toLowerCase()} mode.`);
+        nextErrors.push(`Some files were skipped because they do not fit ${activeCatData.label.toLowerCase()} mode.`);
       }
 
       const newFiles: FileItem[] = [];
+      let nextTotalBytes = totalBytesInQueue;
+
       for (const file of acceptedFiles) {
         const ext = getExtension(file.name);
+        const fileKey = `${file.name}:${file.size}:${file.lastModified}`;
+
+        if (!SUPPORTED_FORMATS[ext]) {
+          nextErrors.push(`${file.name} is not a supported format.`);
+          continue;
+        }
+
+        if (existingKeys.has(fileKey)) {
+          nextErrors.push(`${file.name} is already in the queue.`);
+          continue;
+        }
+
+        if (file.size > MAX_FILE_SIZE_BYTES) {
+          nextErrors.push(`${file.name} is larger than ${formatBytes(MAX_FILE_SIZE_BYTES)}.`);
+          continue;
+        }
+
+        if (files.length + newFiles.length >= MAX_TOTAL_FILES) {
+          nextErrors.push(`Queue limit reached. Keep the batch under ${MAX_TOTAL_FILES} files.`);
+          break;
+        }
+
+        if (nextTotalBytes + file.size > MAX_TOTAL_BATCH_BYTES) {
+          nextErrors.push(`Batch size limit reached. Keep the queue under ${formatBytes(MAX_TOTAL_BATCH_BYTES)} total.`);
+          break;
+        }
+
         if (SUPPORTED_FORMATS[ext]) {
           newFiles.push({
-            id: Math.random().toString(36).substring(7),
+            id: typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function' ? crypto.randomUUID() : Math.random().toString(36).slice(2),
             file,
             targetFormat: SUPPORTED_FORMATS[ext][0] || '',
             status: 'idle',
           });
+          existingKeys.add(fileKey);
+          nextTotalBytes += file.size;
         }
       }
 
       if (newFiles.length > 0) {
         setFiles((prev) => [...prev, ...newFiles]);
-        setError(null);
       }
+
+      setError(nextErrors.length > 0 ? nextErrors[0] : null);
     },
-    [activeCatData.label],
+    [activeCatData.label, files],
   );
 
   const { getRootProps, getInputProps, isDragActive, isDragAccept, isDragReject } = useDropzone({
@@ -453,6 +530,8 @@ export default function App() {
   const pendingCount = files.filter((file) => file.status === 'idle' || file.status === 'error').length;
   const finishedCount = files.filter((file) => file.status === 'success' || file.status === 'error').length;
   const successfulCount = files.filter((file) => file.status === 'success').length;
+  const totalQueuedBytes = files.reduce((sum, file) => sum + file.file.size, 0);
+  const failedCount = files.filter((file) => file.status === 'error').length;
 
   return (
     <div className="anime-shell min-h-screen overflow-hidden text-[var(--text-primary)]">
@@ -479,16 +558,16 @@ export default function App() {
             <div className="flex flex-wrap items-center gap-3">
               <div className="anime-chip">
                 <Shield className="h-4 w-4" />
-                Private by design
+                Private on device
               </div>
               <div className="anime-chip">
                 <WandSparkles className="h-4 w-4" />
-                Batch-ready workflow
+                Simple 3-step flow
               </div>
               <button
                 onClick={() => setTheme((current) => (current === 'night' ? 'sunrise' : 'night'))}
                 className="anime-icon-button"
-                title={theme === 'night' ? 'Switch to sunrise mode' : 'Switch to night mode'}
+                title={theme === 'night' ? 'Switch to dawn mode' : 'Switch to midnight mode'}
               >
                 {theme === 'night' ? <Sun className="h-5 w-5" /> : <Moon className="h-5 w-5" />}
               </button>
@@ -544,18 +623,48 @@ export default function App() {
 
             <section className="anime-panel rounded-[2rem] p-5">
               <p className="mb-2 text-[0.68rem] font-bold uppercase tracking-[0.3em] text-[var(--text-soft)]">Status deck</p>
-              <div className="grid gap-3 sm:grid-cols-3 lg:grid-cols-1">
-                <div className="anime-stat-card">
-                  <span className="anime-stat-label">Queued</span>
-                  <strong className="anime-stat-value">{pendingCount}</strong>
+                <div className="grid gap-3 sm:grid-cols-3 lg:grid-cols-1">
+                  <div className="anime-stat-card">
+                    <span className="anime-stat-label">Queued</span>
+                    <strong className="anime-stat-value">{pendingCount}</strong>
                 </div>
                 <div className="anime-stat-card">
                   <span className="anime-stat-label">Finished</span>
                   <strong className="anime-stat-value">{finishedCount}</strong>
                 </div>
-                <div className="anime-stat-card">
-                  <span className="anime-stat-label">Ready</span>
-                  <strong className="anime-stat-value">{successfulCount}</strong>
+                  <div className="anime-stat-card">
+                    <span className="anime-stat-label">Ready</span>
+                    <strong className="anime-stat-value">{successfulCount}</strong>
+                  </div>
+                </div>
+                <div className="mt-3 rounded-[1rem] border border-white/8 bg-white/5 px-4 py-3 text-xs text-[var(--text-muted)]">
+                  Batch weight: {formatBytes(totalQueuedBytes)} of {formatBytes(MAX_TOTAL_BATCH_BYTES)}
+                </div>
+            </section>
+
+            <section className="anime-panel rounded-[2rem] p-5">
+              <p className="mb-3 text-[0.68rem] font-bold uppercase tracking-[0.3em] text-[var(--text-soft)]">Quick guide</p>
+              <div className="space-y-3">
+                <div className="anime-step-card">
+                  <span className="anime-step-number">1</span>
+                  <div>
+                    <div className="font-display text-base font-bold text-white">Choose a mode</div>
+                    <p className="text-sm text-[var(--text-muted)]">Pick Universal, Images, Documents, or Data before you add files.</p>
+                  </div>
+                </div>
+                <div className="anime-step-card">
+                  <span className="anime-step-number">2</span>
+                  <div>
+                    <div className="font-display text-base font-bold text-white">Set the output</div>
+                    <p className="text-sm text-[var(--text-muted)]">Each file keeps its own target format, so mixed batches are easier to manage.</p>
+                  </div>
+                </div>
+                <div className="anime-step-card">
+                  <span className="anime-step-number">3</span>
+                  <div>
+                    <div className="font-display text-base font-bold text-white">Preview before download</div>
+                    <p className="text-sm text-[var(--text-muted)]">Open the preview panel when accuracy matters, especially for PDFs and OCR output.</p>
+                  </div>
                 </div>
               </div>
             </section>
@@ -563,15 +672,16 @@ export default function App() {
 
           <section className="anime-panel relative overflow-hidden rounded-[2.2rem]">
             <div className="anime-panel-glow" />
+            <div className="anime-sea-ribbon" />
             <div className="relative flex h-full flex-col p-5 sm:p-7 lg:p-8">
               <div className="mb-6 flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
                 <div className="max-w-2xl">
                   <p className="text-[0.72rem] font-bold uppercase tracking-[0.35em] text-[var(--text-soft)]">Anime-inspired interface</p>
                   <h2 className="font-display text-3xl font-extrabold leading-tight text-white sm:text-4xl">
-                    Turn chaotic file stacks into a clean, neon workflow.
+                    Clean file conversion with a calm ocean-sky feel.
                   </h2>
                   <p className="mt-3 max-w-xl text-sm leading-7 text-[var(--text-muted)] sm:text-base">
-                    Drag files into the stage, choose the output, then preview and download each result without leaving the browser.
+                    Pick a mode, add files, choose the output format, then preview and download each result without leaving the browser.
                   </p>
                 </div>
                 <div className="anime-hero-pills">
@@ -580,6 +690,68 @@ export default function App() {
                       {format}
                     </span>
                   ))}
+                </div>
+              </div>
+
+                <div className="mb-6 grid gap-3 md:grid-cols-3">
+                  <div className="anime-focus-card">
+                    <span className="anime-focus-label">Local-first</span>
+                    <strong className="anime-focus-value">No account wall</strong>
+                  </div>
+                <div className="anime-focus-card">
+                  <span className="anime-focus-label">PDF to DOCX</span>
+                  <strong className="anime-focus-value">Better layout recovery</strong>
+                </div>
+                  <div className="anime-focus-card">
+                    <span className="anime-focus-label">Scanned pages</span>
+                    <strong className="anime-focus-value">OCR ready</strong>
+                  </div>
+                </div>
+
+              <div className="mb-6 grid gap-3 lg:grid-cols-4">
+                <div className="anime-focus-card">
+                  <span className="anime-focus-label">Security</span>
+                  <strong className="anime-focus-value">Bounded uploads</strong>
+                </div>
+                <div className="anime-focus-card">
+                  <span className="anime-focus-label">Batch caps</span>
+                  <strong className="anime-focus-value">{MAX_TOTAL_FILES} files max</strong>
+                </div>
+                <div className="anime-focus-card">
+                  <span className="anime-focus-label">Queue size</span>
+                  <strong className="anime-focus-value">{formatBytes(totalQueuedBytes)}</strong>
+                </div>
+                <div className="anime-focus-card">
+                  <span className="anime-focus-label">Failures</span>
+                  <strong className="anime-focus-value">{failedCount}</strong>
+                </div>
+                </div>
+
+              <div className="mb-6 rounded-[1.4rem] border border-white/10 bg-white/6 p-4 sm:p-5">
+                <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
+                  <div className="max-w-2xl">
+                    <p className="text-[0.68rem] font-bold uppercase tracking-[0.28em] text-[var(--text-soft)]">PDF to DOCX mode</p>
+                    <h3 className="font-display text-xl font-bold text-white">Choose speed or high fidelity</h3>
+                    <p className="mt-1 text-sm leading-7 text-[var(--text-muted)]">
+                      High-fidelity mode uses a server-backed conversion route for production PDFs. Local mode stays fully in-browser and works as a fallback.
+                    </p>
+                  </div>
+                  <div className="flex flex-wrap gap-3">
+                    <button
+                      type="button"
+                      onClick={() => setPdfDocxMode('high-fidelity')}
+                      className={cn('anime-cta-secondary', pdfDocxMode === 'high-fidelity' && 'border-cyan-300/45 bg-cyan-300/14 text-white')}
+                    >
+                      High fidelity
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setPdfDocxMode('local')}
+                      className={cn('anime-cta-secondary', pdfDocxMode === 'local' && 'border-cyan-300/45 bg-cyan-300/14 text-white')}
+                    >
+                      Fast local
+                    </button>
+                  </div>
                 </div>
               </div>
 
@@ -615,12 +787,12 @@ export default function App() {
                         <div className="relative z-10 max-w-2xl">
                           <p className="mb-3 text-[0.74rem] font-bold uppercase tracking-[0.42em] text-[var(--text-soft)]">Drop zone</p>
                           <h3 className="font-display text-4xl font-extrabold tracking-[0.06em] text-white sm:text-5xl">
-                            {isDragReject ? 'That file does not match this mode.' : isDragAccept ? 'Release to queue the files.' : 'Drop files into the portal.'}
+                            {isDragReject ? 'That file does not match this mode.' : isDragAccept ? 'Release to add the files.' : 'Drop files here to get started.'}
                           </h3>
                           <p className="mx-auto mt-4 max-w-xl text-base leading-8 text-[var(--text-muted)]">
                             {isDragReject
                               ? `Switch the mode or choose a compatible format for ${activeCatData.label.toLowerCase()}.`
-                              : 'Tap or drag files here to prepare a local conversion batch with previews, downloads, and optional OCR for PDFs.'}
+                              : 'Tap or drag files here to prepare a local conversion batch with previews, downloads, and optional OCR for scanned PDFs.'}
                           </p>
                         </div>
 
@@ -786,7 +958,7 @@ export default function App() {
                               <div>
                                 <div className="font-display text-lg font-bold text-white">Enable OCR boost for PDF text pulls</div>
                                 <p className="mt-1 text-sm leading-7 text-[var(--text-muted)]">
-                                  Best for scanned pages and dense layouts when converting PDF files into DOCX or TXT. It takes longer, but usually captures more text.
+                                  Best for scanned pages and dense layouts when converting PDF files into DOCX or TXT. It takes longer, but usually captures more text and structure.
                                 </p>
                               </div>
                             </label>
@@ -800,7 +972,7 @@ export default function App() {
                               <div className="mb-3 flex items-center justify-between gap-4">
                                 <div className="flex items-center gap-3 text-cyan-100">
                                   <RefreshCw className="h-5 w-5 animate-spin" />
-                                  <span className="font-display text-lg font-bold">Converting batch</span>
+                                  <span className="font-display text-lg font-bold">Converting your files</span>
                                 </div>
                                 <div className="rounded-full bg-white/10 px-3 py-1 text-sm text-[var(--text-muted)]">
                                   {finishedCount} / {files.length}
@@ -843,7 +1015,7 @@ export default function App() {
                                 <CheckCircle2 className="h-7 w-7 text-emerald-100" />
                               </div>
                               <div>
-                                <p className="font-display text-lg font-bold text-white">Batch complete</p>
+                                <p className="font-display text-lg font-bold text-white">Everything is ready</p>
                                 <p className="text-sm text-[var(--text-muted)]">Preview each result or download the whole set as a zip.</p>
                               </div>
                             </div>
@@ -914,7 +1086,7 @@ export default function App() {
 
               <div className="mt-6 flex justify-end">
                 <button onClick={() => setShowAbout(false)} className="anime-primary-button lg:w-auto">
-                  Back to the studio
+                  Close
                 </button>
               </div>
             </motion.div>

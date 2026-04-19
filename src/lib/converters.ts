@@ -4,7 +4,7 @@ import mammoth from 'mammoth';
 import { jsPDF } from 'jspdf';
 import { renderAsync } from 'docx-preview';
 import html2canvas from 'html2canvas';
-import { Document, Packer, Paragraph, TextRun, TabStopType } from 'docx';
+import { AlignmentType, Document, Packer, Paragraph, Table, TableCell, TableRow, TextRun, TabStopType, WidthType } from 'docx';
 import yaml from 'js-yaml';
 import { json2xml, xml2json } from 'xml-js';
 import JSZip from 'jszip';
@@ -42,6 +42,8 @@ export const SUPPORTED_FORMATS: Record<string, string[]> = {
   pdf: ['txt', 'txt (OCR)', 'docx'],
 };
 
+export type ConversionMode = 'local' | 'high-fidelity';
+
 export function getExtension(filename: string): string {
   const parts = filename.split('.');
   return parts.length > 1 ? parts.pop()?.toLowerCase() || '' : '';
@@ -51,6 +53,394 @@ export function getBaseName(filename: string): string {
   const parts = filename.split('.');
   if (parts.length > 1) parts.pop();
   return parts.join('.');
+}
+
+export function requiresHighFidelityServer(file: File, toExt: string) {
+  return getExtension(file.name) === 'pdf' && toExt === 'docx';
+}
+
+const TWIPS_PER_POINT = 20;
+
+type PdfWordItem = {
+  text: string;
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+  fontSize: number;
+  fontName?: string;
+};
+
+type PdfLineSegment = {
+  text: string;
+  x: number;
+  width: number;
+  fontSize: number;
+  isBold: boolean;
+  isItalic: boolean;
+};
+
+type PdfLineLayout = {
+  baselineY: number;
+  maxHeight: number;
+  segments: PdfLineSegment[];
+  leftX: number;
+  rightX: number;
+};
+
+type DocxPageChild = Paragraph | Table;
+
+function clampNumber(value: number, min: number, max: number) {
+  return Math.min(Math.max(value, min), max);
+}
+
+function toTwipsFromViewport(value: number, viewportWidth: number, pageWidthTwips: number) {
+  if (!Number.isFinite(value) || viewportWidth <= 0 || pageWidthTwips <= 0) return 0;
+  return Math.round(value * (pageWidthTwips / viewportWidth));
+}
+
+function getNumericValue(value: unknown, fallback = 0) {
+  return typeof value === 'number' && Number.isFinite(value) ? value : fallback;
+}
+
+function getPdfWordItems(textItems: any[]) {
+  const items: PdfWordItem[] = [];
+
+  for (const item of textItems) {
+    const rawText = typeof item?.str === 'string' ? item.str : '';
+    if (!rawText || (!rawText.trim() && rawText !== ' ')) continue;
+
+    const transform = Array.isArray(item?.transform) ? item.transform : [];
+    const x = getNumericValue(transform[4], 0);
+    const y = getNumericValue(transform[5], 0);
+    const width = Math.max(0, getNumericValue(item?.width, 0));
+    const height = Math.max(
+      getNumericValue(item?.height, 0),
+      Math.abs(getNumericValue(transform[0], 0)),
+      Math.abs(getNumericValue(transform[3], 0)),
+      1,
+    );
+
+    items.push({
+      text: rawText.replace(/[\x00-\x08\x0B\x0C\x0E-\x1F]/g, ''),
+      x,
+      y,
+      width,
+      height,
+      fontSize: clampNumber(height * 0.75, 8, 42),
+      fontName: typeof item?.fontName === 'string' ? item.fontName : undefined,
+    });
+  }
+
+  return items;
+}
+
+function buildPdfLineLayouts(items: PdfWordItem[]) {
+  if (items.length === 0) return [];
+
+  const avgHeight = items.reduce((sum, item) => sum + item.height, 0) / items.length;
+  const tolerance = clampNumber(avgHeight * 0.35, 2, 8);
+  const lines: Array<{ baselineY: number; items: PdfWordItem[] }> = [];
+
+  for (const item of items) {
+    let targetLine = lines.find((line) => Math.abs(line.baselineY - item.y) <= tolerance);
+    if (!targetLine) {
+      targetLine = { baselineY: item.y, items: [] };
+      lines.push(targetLine);
+    }
+    targetLine.items.push(item);
+  }
+
+  return lines
+    .sort((a, b) => b.baselineY - a.baselineY)
+    .map((line) => {
+      const sortedItems = [...line.items].sort((a, b) => a.x - b.x);
+      const segments: PdfLineSegment[] = [];
+
+      let currentSegment: PdfLineSegment | null = null;
+
+      for (const item of sortedItems) {
+        const itemIsBold = item.fontName ? /bold|black|semibold|demibold/i.test(item.fontName) : false;
+        const itemIsItalic = item.fontName ? /italic|oblique/i.test(item.fontName) : false;
+
+        if (!currentSegment) {
+          currentSegment = {
+            text: item.text,
+            x: item.x,
+            width: Math.max(item.width, item.text.length * item.fontSize * 0.45),
+            fontSize: item.fontSize,
+            isBold: itemIsBold,
+            isItalic: itemIsItalic,
+          };
+          continue;
+        }
+
+        const currentRight = currentSegment.x + currentSegment.width;
+        const gap = item.x - currentRight;
+        const noSpaceThreshold = Math.max(currentSegment.fontSize * 0.18, 1.2);
+        const softSpaceThreshold = Math.max(currentSegment.fontSize * 0.9, 3.2);
+        const compatibleStyle =
+          currentSegment.isBold === itemIsBold &&
+          currentSegment.isItalic === itemIsItalic &&
+          Math.abs(currentSegment.fontSize - item.fontSize) <= 1.5;
+
+        if (compatibleStyle && gap <= noSpaceThreshold) {
+          currentSegment.text += item.text;
+          currentSegment.width = Math.max(item.x + item.width - currentSegment.x, currentSegment.width);
+          continue;
+        }
+
+        if (compatibleStyle && gap <= softSpaceThreshold) {
+          if (!currentSegment.text.endsWith(' ') && !item.text.startsWith(' ')) {
+            currentSegment.text += ' ';
+          }
+          currentSegment.text += item.text;
+          currentSegment.width = Math.max(item.x + item.width - currentSegment.x, currentSegment.width);
+          continue;
+        }
+
+        segments.push(currentSegment);
+        currentSegment = {
+          text: item.text,
+          x: item.x,
+          width: Math.max(item.width, item.text.length * item.fontSize * 0.45),
+          fontSize: item.fontSize,
+          isBold: itemIsBold,
+          isItalic: itemIsItalic,
+        };
+      }
+
+      if (currentSegment) {
+        segments.push(currentSegment);
+      }
+
+      const leftX = segments[0]?.x ?? 0;
+      const rightX = segments[segments.length - 1] ? segments[segments.length - 1].x + segments[segments.length - 1].width : leftX;
+
+      return {
+        baselineY: line.baselineY,
+        maxHeight: sortedItems.reduce((max, item) => Math.max(max, item.height), 0),
+        segments,
+        leftX,
+        rightX,
+      } satisfies PdfLineLayout;
+    });
+}
+
+function getParagraphAlignment(line: PdfLineLayout, viewportWidth: number) {
+  const lineWidth = line.rightX - line.leftX;
+  const leftMargin = line.leftX;
+  const rightMargin = Math.max(0, viewportWidth - line.rightX);
+
+  if (line.segments.length <= 1 && lineWidth < viewportWidth * 0.7) {
+    if (Math.abs(leftMargin - rightMargin) <= viewportWidth * 0.08) {
+      return AlignmentType.CENTER;
+    }
+
+    if (rightMargin <= viewportWidth * 0.08 && leftMargin >= viewportWidth * 0.2) {
+      return AlignmentType.RIGHT;
+    }
+  }
+
+  return AlignmentType.LEFT;
+}
+
+function buildParagraphFromPdfLine(line: PdfLineLayout, viewportWidth: number, pageWidthTwips: number, previousLine?: PdfLineLayout | null) {
+  let previousBaselineY: number | null = null;
+  let previousHeight = 0;
+  if (previousLine) {
+    previousBaselineY = previousLine.baselineY;
+    previousHeight = previousLine.maxHeight;
+  }
+
+  const runs: TextRun[] = [];
+  const tabStops: { type: typeof TabStopType.LEFT; position: number }[] = [];
+  let currentRightX = line.leftX;
+
+  for (let index = 0; index < line.segments.length; index++) {
+    const segment = line.segments[index];
+    const size = clampNumber(Math.round(segment.fontSize * 2), 16, 96);
+
+    if (index > 0) {
+      const gap = segment.x - currentRightX;
+      if (gap > segment.fontSize * 1.2) {
+        const tabPosition = clampNumber(toTwipsFromViewport(segment.x, viewportWidth, pageWidthTwips), 0, pageWidthTwips);
+        tabStops.push({ type: TabStopType.LEFT, position: tabPosition });
+        runs.push(
+          new TextRun({
+            text: `\t${segment.text}`,
+            size,
+            bold: segment.isBold,
+            italics: segment.isItalic,
+          }),
+        );
+      } else {
+        runs.push(
+          new TextRun({
+            text: ` ${segment.text}`.replace(/^  +/, ' '),
+            size,
+            bold: segment.isBold,
+            italics: segment.isItalic,
+          }),
+        );
+      }
+    } else {
+      runs.push(
+        new TextRun({
+          text: segment.text,
+          size,
+          bold: segment.isBold,
+          italics: segment.isItalic,
+        }),
+      );
+    }
+
+    currentRightX = segment.x + segment.width;
+  }
+
+  const spacingBeforeUnits =
+    previousBaselineY === null
+      ? 0
+      : Math.max(0, previousBaselineY - line.baselineY - Math.max(previousHeight, line.maxHeight) * 0.9);
+
+  return new Paragraph({
+    children: runs.length > 0 ? runs : [new TextRun('')],
+    alignment: getParagraphAlignment(line, viewportWidth),
+    indent: {
+      left: clampNumber(toTwipsFromViewport(line.leftX, viewportWidth, pageWidthTwips), 0, pageWidthTwips),
+    },
+    spacing: {
+      before: clampNumber(toTwipsFromViewport(spacingBeforeUnits, viewportWidth, pageWidthTwips), 0, 2400),
+      line: clampNumber(toTwipsFromViewport(line.maxHeight * 1.15, viewportWidth, pageWidthTwips), 240, 1200),
+    },
+    tabStops: tabStops.length > 0 ? tabStops : undefined,
+  });
+}
+
+function isPotentialTableLine(line: PdfLineLayout, viewportWidth: number) {
+  if (line.segments.length < 2 || line.segments.length > 6) return false;
+
+  let significantGapCount = 0;
+  for (let i = 1; i < line.segments.length; i++) {
+    const previous = line.segments[i - 1];
+    const current = line.segments[i];
+    const gap = current.x - (previous.x + previous.width);
+    if (gap > Math.max(previous.fontSize * 2.6, viewportWidth * 0.035)) {
+      significantGapCount += 1;
+    }
+  }
+
+  return significantGapCount > 0 && line.rightX - line.leftX > viewportWidth * 0.28;
+}
+
+function areCompatibleTableRows(a: PdfLineLayout, b: PdfLineLayout) {
+  if (a.segments.length !== b.segments.length) return false;
+
+  let totalDrift = 0;
+  for (let i = 0; i < a.segments.length; i++) {
+    totalDrift += Math.abs(a.segments[i].x - b.segments[i].x);
+  }
+
+  return totalDrift / a.segments.length <= 18;
+}
+
+function buildTableFromPdfLines(lines: PdfLineLayout[], viewportWidth: number, pageWidthTwips: number) {
+  const columnCount = Math.max(...lines.map((line) => line.segments.length));
+  const columnStarts = Array.from({ length: columnCount }, (_, index) => {
+    const values = lines
+      .map((line) => line.segments[index]?.x)
+      .filter((value): value is number => typeof value === 'number')
+      .sort((a, b) => a - b);
+    if (values.length === 0) return (index / columnCount) * viewportWidth;
+    return values[Math.floor(values.length / 2)];
+  });
+  const boundaries = [0];
+
+  for (let index = 1; index < columnStarts.length; index++) {
+    boundaries.push((columnStarts[index - 1] + columnStarts[index]) / 2);
+  }
+  boundaries.push(viewportWidth);
+
+  const rows = lines.map((line) => {
+    const cells = Array.from({ length: columnCount }, (_, index) => {
+      const segment = line.segments[index];
+      const widthViewport = Math.max(24, boundaries[index + 1] - boundaries[index]);
+      const widthTwips = clampNumber(toTwipsFromViewport(widthViewport, viewportWidth, pageWidthTwips), 360, pageWidthTwips);
+      const paragraph = segment
+        ? new Paragraph({
+            children: [
+              new TextRun({
+                text: segment.text,
+                size: clampNumber(Math.round(segment.fontSize * 2), 16, 96),
+                bold: segment.isBold,
+                italics: segment.isItalic,
+              }),
+            ],
+            spacing: { line: 280 },
+          })
+        : new Paragraph('');
+
+      return new TableCell({
+        width: {
+          size: widthTwips,
+          type: WidthType.DXA,
+        },
+        children: [paragraph],
+      });
+    });
+
+    return new TableRow({ children: cells });
+  });
+
+  return new Table({
+    width: {
+      size: pageWidthTwips,
+      type: WidthType.DXA,
+    },
+    rows,
+  });
+}
+
+function buildDocxBlocksFromPdfLines(lines: PdfLineLayout[], viewportWidth: number, pageWidthTwips: number) {
+  const children: DocxPageChild[] = [];
+  let index = 0;
+  let previousParagraphLine: PdfLineLayout | null = null;
+
+  while (index < lines.length) {
+    const currentLine = lines[index];
+
+    if (isPotentialTableLine(currentLine, viewportWidth)) {
+      const candidateLines = [currentLine];
+      let cursor = index + 1;
+
+      while (cursor < lines.length) {
+        const nextLine = lines[cursor];
+        const previousLine = candidateLines[candidateLines.length - 1];
+        const verticalGap = previousLine.baselineY - nextLine.baselineY;
+        const maxAllowedGap = Math.max(previousLine.maxHeight, nextLine.maxHeight) * 2.4;
+
+        if (!isPotentialTableLine(nextLine, viewportWidth) || !areCompatibleTableRows(previousLine, nextLine) || verticalGap > maxAllowedGap) {
+          break;
+        }
+
+        candidateLines.push(nextLine);
+        cursor += 1;
+      }
+
+      if (candidateLines.length >= 2) {
+        children.push(buildTableFromPdfLines(candidateLines, viewportWidth, pageWidthTwips));
+        previousParagraphLine = candidateLines[candidateLines.length - 1];
+        index = cursor;
+        continue;
+      }
+    }
+
+    children.push(buildParagraphFromPdfLine(currentLine, viewportWidth, pageWidthTwips, previousParagraphLine));
+    previousParagraphLine = currentLine;
+    index += 1;
+  }
+
+  return children;
 }
 
 async function convertImage(file: File, toExt: string): Promise<Blob> {
@@ -169,187 +559,26 @@ async function convertPdfToDocx(file: File, useOcr: boolean = false, onProgress?
   const arrayBuffer = await file.arrayBuffer();
   const pdfjsLib = await getPdfjs();
   const pdf = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
-  
-  const children: Paragraph[] = [];
+  const sections: { properties: any; children: DocxPageChild[] }[] = [];
 
   for (let i = 1; i <= pdf.numPages; i++) {
     if (onProgress) onProgress(10 + Math.floor((i / pdf.numPages) * 80));
     const page = await pdf.getPage(i);
     const textContent = await page.getTextContent();
     const viewport = page.getViewport({ scale: 1.0 });
-    const pageHeight = viewport.height;
-    
-    // Group items by their Y coordinate to form lines
-    const linesMap = new Map<number, any[]>();
-    for (const item of textContent.items as any[]) {
-      if (!item.str || (!item.str.trim() && item.str !== ' ')) continue;
-      
-      let y = item.transform && item.transform.length > 5 ? Number(item.transform[5]) : 0;
-      if (!Number.isFinite(y)) y = 0;
-      
-      // Allow a slightly larger tolerance for Y coordinates (up to 8) to group items on the same line robustly
-      let foundY = y;
-      for (const existingY of linesMap.keys()) {
-        if (Math.abs(existingY - y) <= 8) {
-          foundY = existingY;
-          break;
-        }
-      }
-      
-      if (!linesMap.has(foundY)) {
-        linesMap.set(foundY, []);
-      }
-      linesMap.get(foundY)!.push(item);
-    }
+    const [, , pdfWidth = viewport.width, pdfHeight = viewport.height] = page.view || [0, 0, viewport.width, viewport.height];
+    const pageWidthTwips = Math.max(Math.round(pdfWidth * TWIPS_PER_POINT), 1);
+    const pageHeightTwips = Math.max(Math.round(pdfHeight * TWIPS_PER_POINT), 1);
+    const lineLayouts = buildPdfLineLayouts(getPdfWordItems(textContent.items as any[]));
+    const children = buildDocxBlocksFromPdfLines(lineLayouts, viewport.width, pageWidthTwips);
 
-    // Sort Y coordinates descending (PDF coordinates go bottom to top)
-    const sortedY = Array.from(linesMap.keys()).sort((a, b) => b - a);
-    
-    let lastY: number | null = null;
-    
-    for (const y of sortedY) {
-      const lineItems = linesMap.get(y)!;
-      // Sort items by X coordinate
-      lineItems.sort((a, b) => {
-        let ax = a.transform && a.transform.length > 4 ? Number(a.transform[4]) : 0;
-        if (!Number.isFinite(ax)) ax = 0;
-        let bx = b.transform && b.transform.length > 4 ? Number(b.transform[4]) : 0;
-        if (!Number.isFinite(bx)) bx = 0;
-        return ax - bx;
-      });
-      
-      // Merge adjacent items to fix character spacing
-      const mergedItems: any[] = [];
-      let currentItem: any = null;
-
-      for (const item of lineItems) {
-        if (!currentItem) {
-          currentItem = { ...item };
-          continue;
-        }
-
-        let currentX = currentItem.transform[4];
-        let currentScaleX = Math.abs(currentItem.transform[0]);
-        let currentWidth = currentItem.width || (currentItem.str.length * currentScaleX * 0.5);
-        let nextX = item.transform[4];
-        
-        let gap = nextX - (currentX + currentWidth);
-        
-        // If gap is very small (e.g. character spacing) or negative (overlapping), merge without space
-        if (gap < currentScaleX * 0.25) {
-          currentItem.str += item.str;
-          currentItem.width = (nextX + (item.width || (item.str.length * Math.abs(item.transform[0]) * 0.5))) - currentX;
-        } 
-        // If gap is roughly a space width, merge with space
-        else if (gap >= currentScaleX * 0.25 && gap < currentScaleX * 1.5) {
-          if (!currentItem.str.endsWith(' ') && !item.str.startsWith(' ')) {
-            currentItem.str += ' ';
-          }
-          currentItem.str += item.str;
-          currentItem.width = (nextX + (item.width || (item.str.length * Math.abs(item.transform[0]) * 0.5))) - currentX;
-        }
-        // Force split if extremely large gap
-        else {
-          mergedItems.push(currentItem);
-          currentItem = { ...item };
-        }
-      }
-      if (currentItem) {
-        mergedItems.push(currentItem);
-      }
-      
-      if (mergedItems.length === 0) continue;
-      
-      let currentParagraphRuns: TextRun[] = [];
-      let tabStops: any[] = [];
-      
-      let firstItemX = mergedItems[0].transform && mergedItems[0].transform.length > 4 ? Number(mergedItems[0].transform[4]) : 0;
-      if (!Number.isFinite(firstItemX) || Number.isNaN(firstItemX)) firstItemX = 0;
-      
-      let indentLeft = Math.max(0, Math.round(firstItemX * 20)); // twips
-      
-      let currentX = firstItemX;
-
-      for (let j = 0; j < mergedItems.length; j++) {
-        const item = mergedItems[j];
-        let scaleX = item.transform && item.transform.length > 0 ? Number(item.transform[0]) : 12;
-        if (!Number.isFinite(scaleX) || Number.isNaN(scaleX)) scaleX = 12;
-        
-        let ptSize = Math.abs(scaleX);
-        if (ptSize < 6) ptSize = 11;
-        if (ptSize > 72) ptSize = 72;
-        let size = Math.round(ptSize * 2);
-        
-        const isBold = item.fontName ? item.fontName.toLowerCase().includes('bold') : false;
-        const isItalic = item.fontName ? item.fontName.toLowerCase().includes('italic') || item.fontName.toLowerCase().includes('oblique') : false;
-        
-        const text = (item.str || '').replace(/[\x00-\x08\x0B\x0C\x0E-\x1F]/g, '');
-        
-        // Skip purely empty nodes unless they act as significant spaces
-        if (text.trim().length === 0 && text.length > 0 && j === 0) continue;
-
-        let itemX = item.transform && item.transform.length > 4 ? Number(item.transform[4]) : 0;
-        if (!Number.isFinite(itemX) || Number.isNaN(itemX)) itemX = 0;
-        
-        if (j > 0) {
-          const gap = itemX - currentX;
-          if (gap > (ptSize * 0.2)) {
-            const tabPosition = Math.max(0, Math.min(Math.round(itemX * 20), 9000));
-            tabStops.push({
-              type: TabStopType.LEFT,
-              position: tabPosition
-            });
-            currentParagraphRuns.push(new TextRun({ text: "\t" + text, size: size, bold: isBold, italics: isItalic }));
-          } else {
-            currentParagraphRuns.push(new TextRun({ text: text, size: size, bold: isBold, italics: isItalic }));
-          }
-        } else {
-          currentParagraphRuns.push(new TextRun({ text: text, size: size, bold: isBold, italics: isItalic }));
-        }
-        
-        currentX = itemX + (item.width || (text.length * ptSize * 0.5));
-      }
-      
-      let spacingBefore = 0;
-      if (lastY !== null) {
-        const deltaY = lastY - y;
-        spacingBefore = Math.max(0, Math.min(Math.round((deltaY - 12) * 20), 2000)); 
-      } else {
-        const topMargin = pageHeight - y;
-        spacingBefore = Math.max(0, Math.min(Math.round((topMargin - 12) * 20), 2000));
-      }
-      
-      let safeIndentLeft = Math.max(0, Math.min(indentLeft, 9000));
-
-      children.push(new Paragraph({
-        children: currentParagraphRuns,
-        indent: { left: safeIndentLeft },
-        spacing: { before: spacingBefore },
-        tabStops: tabStops.length > 0 ? tabStops : undefined,
-      }));
-      
-      lastY = y;
-    }
-
-    if (i < pdf.numPages) {
-      children.push(new Paragraph({ children: [new TextRun("")] }));
-    }
-  }
-
-  // Add E-Signature Placeholder
-  children.push(new Paragraph({
-    children: [
-      new TextRun({ text: "\n\n\n\n\n", break: 5 }),
-      new TextRun({ text: "By signing below, I agree to the terms." }),
-      new TextRun({ text: "\n", break: 1 }),
-      new TextRun({ text: "E-Signature: ___________________________\tDate: ________________________", bold: true }),
-    ]
-  }));
-
-  const doc = new Document({
-    sections: [{
+    sections.push({
       properties: {
         page: {
+          size: {
+            width: pageWidthTwips,
+            height: pageHeightTwips,
+          },
           margin: {
             top: 0,
             right: 0,
@@ -358,8 +587,12 @@ async function convertPdfToDocx(file: File, useOcr: boolean = false, onProgress?
           },
         },
       },
-      children: children.length > 0 ? children : [new Paragraph({ children: [new TextRun("No text found")] })]
-    }]
+      children: children.length > 0 ? children : [new Paragraph({ children: [new TextRun('No text found')] })],
+    });
+  }
+
+  const doc = new Document({
+    sections,
   });
 
   return Packer.toBlob(doc);
@@ -377,7 +610,7 @@ async function getOcrScheduler() {
         logger: m => console.log(m)
       });
       await worker.setParameters({
-        tessedit_pageseg_mode: 1 as any,
+        tessedit_pageseg_mode: 4 as any,
         preserve_interword_spaces: '1',
       });
       ocrScheduler.addWorker(worker);
@@ -392,8 +625,7 @@ async function convertPdfToDocxWithOcr(file: File, onProgress?: (p: number) => v
   const pdf = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
   
   const scheduler = await getOcrScheduler();
-  
-  const children: Paragraph[] = [];
+  const sections: { properties: any; children: DocxPageChild[] }[] = [];
   // Use Promise.all to process pages simultaneously
   const pagePromises = [];
   let completedPages = 0;
@@ -401,7 +633,7 @@ async function convertPdfToDocxWithOcr(file: File, onProgress?: (p: number) => v
   for (let i = 1; i <= pdf.numPages; i++) {
     pagePromises.push((async () => {
       const page = await pdf.getPage(i);
-      const scaleFactor = 4.0;
+      const scaleFactor = 4.5;
       const viewport = page.getViewport({ scale: scaleFactor }); // Increased for better OCR
       const canvas = document.createElement('canvas');
       canvas.width = viewport.width;
@@ -418,17 +650,16 @@ async function convertPdfToDocxWithOcr(file: File, onProgress?: (p: number) => v
       
       await page.render({ canvasContext: ctx, viewport, canvas: canvas as any }).promise;
       
-      // Tesseract Pre-processing: Grayscale and Thresholding for better OCR accuracy
+      // OCR pre-processing tuned for scanned pages: grayscale, contrast boost, and soft thresholding.
       const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
       const pd = imageData.data;
       for (let p = 0; p < pd.length; p += 4) {
         const r = pd[p];
         const g = pd[p+1];
         const b = pd[p+2];
-        // Convert to grayscale
         let gray = 0.299 * r + 0.587 * g + 0.114 * b;
-        // High-contrast threshold
-        gray = gray > 180 ? 255 : 0;
+        gray = clampNumber((gray - 128) * 1.45 + 128, 0, 255);
+        gray = gray > 168 ? 255 : gray < 120 ? 0 : gray;
         pd[p] = pd[p+1] = pd[p+2] = gray;
       }
       ctx.putImageData(imageData, 0, 0);
@@ -446,7 +677,13 @@ async function convertPdfToDocxWithOcr(file: File, onProgress?: (p: number) => v
 
   for (const result of pageResults) {
     if (!result.data) continue;
-    
+    const page = await pdf.getPage(result.i);
+    const viewport = page.getViewport({ scale: 1.0 });
+    const [, , pdfWidth = viewport.width, pdfHeight = viewport.height] = page.view || [0, 0, viewport.width, viewport.height];
+    const pageWidthTwips = Math.max(Math.round(pdfWidth * TWIPS_PER_POINT), 1);
+    const pageHeightTwips = Math.max(Math.round(pdfHeight * TWIPS_PER_POINT), 1);
+
+    const pageChildren: DocxPageChild[] = [];
     let lastY: number | null = null;
     const scaleFactor = result.scaleFactor;
     
@@ -457,7 +694,7 @@ async function convertPdfToDocxWithOcr(file: File, onProgress?: (p: number) => v
       const y1 = line.bbox.y1 / scaleFactor;
       const height = y1 - y0;
       
-      let ptSize = height * 0.75;
+      let ptSize = height * 0.7;
       if (ptSize < 6) ptSize = 11;
       if (ptSize > 72) ptSize = 72;
       let size = Math.round(ptSize * 2);
@@ -467,7 +704,7 @@ async function convertPdfToDocxWithOcr(file: File, onProgress?: (p: number) => v
       let spacingBefore = 0;
       if (lastY !== null) {
         const deltaY = y0 - lastY;
-        spacingBefore = Math.max(0, Math.min(Math.round((deltaY) * 20), 2000));
+        spacingBefore = Math.max(0, Math.min(Math.round((deltaY) * 18), 2000));
       } else {
         spacingBefore = Math.max(0, Math.min(Math.round(y0 * 20), 2000));
       }
@@ -500,8 +737,9 @@ async function convertPdfToDocxWithOcr(file: File, onProgress?: (p: number) => v
         currentX = word.bbox.x1 / scaleFactor;
       }
       
-      children.push(new Paragraph({
+      pageChildren.push(new Paragraph({
         children: currentParagraphRuns,
+        alignment: line.words.length === 1 && x0 > viewport.width * 0.55 ? AlignmentType.RIGHT : AlignmentType.LEFT,
         indent: { left: indentLeft },
         spacing: { before: spacingBefore },
         tabStops: tabStops.length > 0 ? tabStops : undefined,
@@ -509,33 +747,30 @@ async function convertPdfToDocxWithOcr(file: File, onProgress?: (p: number) => v
       
       lastY = y0;
     }
-    
-    if (result.i < pdf.numPages) {
-      children.push(new Paragraph({ children: [new TextRun("")], pageBreakBefore: true }));
-    }
+
+    sections.push({
+      properties: {
+        page: {
+          size: {
+            width: pageWidthTwips,
+            height: pageHeightTwips,
+          },
+          margin: {
+            top: 0,
+            right: 0,
+            bottom: 0,
+            left: 0,
+          },
+        },
+      },
+      children: pageChildren.length > 0 ? pageChildren : [new Paragraph({ children: [new TextRun('No text found')] })],
+    });
   }
   
   // We don't terminate the scheduler so other batch conversions can reuse the worker pool
 
-  // Add E-Signature Placeholder
-  children.push(new Paragraph({
-    children: [
-      new TextRun({ text: "\n\n\n\n\n", break: 5 }),
-      new TextRun({ text: "By signing below, I agree to the terms." }),
-      new TextRun({ text: "\n", break: 1 }),
-      new TextRun({ text: "E-Signature: ___________________________\tDate: ________________________", bold: true }),
-    ]
-  }));
-
   const doc = new Document({
-    sections: [{
-      properties: {
-        page: {
-          margin: { top: 0, right: 0, bottom: 0, left: 0 },
-        },
-      },
-      children: children.length > 0 ? children : [new Paragraph({ children: [new TextRun("No text found")] })]
-    }]
+    sections,
   });
 
   return Packer.toBlob(doc);
@@ -556,7 +791,7 @@ async function performOcr(file: File, isPdf: boolean, onProgress?: (p: number) =
     for (let i = 1; i <= pdf.numPages; i++) {
       pagePromises.push((async () => {
         const page = await pdf.getPage(i);
-        const viewport = page.getViewport({ scale: 2.0 });
+        const viewport = page.getViewport({ scale: 3.0 });
         const canvas = document.createElement('canvas');
         canvas.width = viewport.width;
         canvas.height = viewport.height;
@@ -876,6 +1111,46 @@ export async function convertFile(file: File, toExt: string, options?: { useOcr?
     }
     throw new Error('An unexpected error occurred during conversion.');
   }
+}
+
+export async function convertPdfToDocxWithService(
+  file: File,
+  options?: { useOcr?: boolean; onProgress?: (p: number) => void },
+): Promise<{ blob: Blob; filename: string }> {
+  const formData = new FormData();
+  formData.append('file', file);
+  formData.append('ocrMode', options?.useOcr ? 'force' : 'auto');
+  formData.append('wysiwyg', 'true');
+
+  if (options?.onProgress) {
+    options.onProgress(15);
+  }
+
+  const response = await fetch('/api/convert/pdf-to-docx', {
+    method: 'POST',
+    body: formData,
+  });
+
+  if (!response.ok) {
+    const payload = await response.json().catch(() => null);
+    throw new Error(payload?.error || 'High-fidelity conversion is unavailable right now.');
+  }
+
+  if (options?.onProgress) {
+    options.onProgress(95);
+  }
+
+  const blob = await response.blob();
+  const outputName = response.headers.get('x-output-filename') || `${getBaseName(file.name)}.docx`;
+
+  if (options?.onProgress) {
+    options.onProgress(100);
+  }
+
+  return {
+    blob,
+    filename: outputName,
+  };
 }
 
 export async function zipFiles(files: { name: string, blob: Blob }[]): Promise<Blob> {
