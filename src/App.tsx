@@ -15,6 +15,7 @@ import { vscDarkPlus } from 'react-syntax-highlighter/dist/esm/styles/prism';
 
 function FilePreview({ url, format }: { url: string, format: string }) {
   const [content, setContent] = useState<string | null>(null);
+  const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const containerRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -22,15 +23,23 @@ function FilePreview({ url, format }: { url: string, format: string }) {
 
     const loadPreview = async () => {
       try {
+        setErrorMsg(null);
         if (['png', 'jpg', 'jpeg', 'webp', 'bmp', 'gif'].includes(format)) {
           setContent('image');
         } else if (format === 'pdf') {
           setContent('pdf');
         } else if (format === 'docx') {
           setContent('docx');
+          // docx-preview will render directly into the DOM container later
+          // Note: rendering takes place in a separate effect or is triggered here
           if (containerRef.current) {
             const response = await fetch(url);
             const blob = await response.blob();
+            
+            if (blob.size > 20 * 1024 * 1024) {
+               throw new Error("File is too large for the browser to preview safely.");
+            }
+            
             await renderAsync(blob, containerRef.current, containerRef.current, {
               inWrapper: true,
               ignoreWidth: false,
@@ -41,18 +50,49 @@ function FilePreview({ url, format }: { url: string, format: string }) {
           }
         } else if (['txt', 'csv', 'json', 'md', 'html', 'xml', 'yaml'].includes(format)) {
           const response = await fetch(url);
-          const text = await response.text();
-          if (isMounted) setContent(text);
+          const blob = await response.blob();
+          
+          // Truncate text preview for performance and to prevent browser locking up
+          const MAX_BYTES = 100 * 1024; // 100 KB
+          const slice = blob.slice(0, MAX_BYTES);
+          const text = await slice.text();
+          
+          if (isMounted) {
+            if (blob.size > MAX_BYTES) {
+              setContent(text + '\n\n... [Preview truncated for performance. Download to see full file] ...');
+            } else {
+              setContent(text);
+            }
+          }
+        } else {
+           throw new Error("Preview is not supported for this file format.");
         }
       } catch (err) {
         console.error('Preview error:', err);
-        if (isMounted) setContent('Error loading preview');
+        if (isMounted) {
+          setErrorMsg(err instanceof Error ? err.message : 'An unexpected error occurred while generating the preview.');
+        }
       }
     };
 
-    loadPreview();
+    // Minor delay to ensure ref is attached if docx is rendering
+    setTimeout(loadPreview, 0);
+
     return () => { isMounted = false; };
   }, [url, format]);
+
+  if (errorMsg) {
+    return (
+      <div className="w-full bg-red-500/10 border border-red-500/30 text-red-200 p-6 rounded-2xl flex flex-col items-center justify-center text-center gap-3 shadow-[0_8px_30px_rgba(0,0,0,0.5)]">
+        <AlertCircle className="w-8 h-8 text-red-400" />
+        <div>
+          <h4 className="font-bold text-red-100 mb-1">Preview Unavailable</h4>
+          <p className="text-sm">{errorMsg}</p>
+          <p className="text-xs text-red-300 mt-2">You can still download the file using the download button above.</p>
+        </div>
+      </div>
+    );
+  }
 
   if (content === 'image') {
     return <img src={url} alt="Preview" className="max-w-full h-auto mx-auto rounded-2xl shadow-[0_8px_30px_rgba(0,0,0,0.5)] border border-white/20" />;
@@ -91,7 +131,7 @@ function FilePreview({ url, format }: { url: string, format: string }) {
   }
 
   return (
-    <div className="w-full max-h-[600px] overflow-auto bg-[#0f172a]/90 backdrop-blur-2xl text-indigo-100 p-6 rounded-2xl font-mono text-sm whitespace-pre-wrap shadow-[0_8px_30px_rgba(0,0,0,0.5)] border border-white/20">
+    <div className="w-full max-h-[600px] overflow-auto bg-[#0f172a]/90 backdrop-blur-2xl text-indigo-100 p-6 rounded-2xl font-mono text-sm whitespace-pre-wrap shadow-[0_8px_30px_rgba(0,0,0,0.5)] border border-white/20 flex items-center justify-center">
       {content || 'Loading preview...'}
     </div>
   );
@@ -170,6 +210,7 @@ export type FileItem = {
   convertedName?: string;
   error?: string;
   showPreview?: boolean;
+  progress?: number;
 };
 
 export default function App() {
@@ -210,7 +251,18 @@ export default function App() {
       });
 
       try {
-        const { blob, filename } = await convertFile(fileItem.file, fileItem.targetFormat, { useOcr: useOcrForPdf });
+        const { blob, filename } = await convertFile(fileItem.file, fileItem.targetFormat, { 
+          useOcr: useOcrForPdf,
+          onProgress: (p) => {
+            setFiles(current => {
+              const next = [...current];
+              if (next[index]) {
+                next[index] = { ...next[index], progress: p };
+              }
+              return next;
+            });
+          }
+        });
         const url = URL.createObjectURL(blob);
         
         setFiles(current => {
@@ -603,12 +655,15 @@ export default function App() {
                                   >
                                     {/* Sweeping progress gradient for converting items */}
                                     {fileItem.status === 'converting' && (
-                                      <motion.div
-                                        className="absolute inset-0 bg-gradient-to-r from-transparent via-cyan-400/10 to-transparent skew-x-[-20deg]"
-                                        initial={{ x: '-150%' }}
-                                        animate={{ x: '150%' }}
-                                        transition={{ duration: 1.5, repeat: Infinity, ease: 'linear' }}
-                                      />
+                                      <>
+                                        <motion.div
+                                          className="absolute inset-0 bg-gradient-to-r from-transparent via-cyan-400/10 to-transparent skew-x-[-20deg]"
+                                          initial={{ x: '-150%' }}
+                                          animate={{ x: '150%' }}
+                                          transition={{ duration: 1.5, repeat: Infinity, ease: 'linear' }}
+                                        />
+                                        <div className="absolute bottom-0 left-0 h-1 bg-cyan-400 border-t border-cyan-300 shadow-[0_0_10px_rgba(34,211,238,0.8)] transition-all duration-300 ease-out" style={{ width: `${fileItem.progress || 0}%` }} />
+                                      </>
                                     )}
                                     {/* Success Glow effect */}
                                     {fileItem.status === 'success' && (
@@ -620,16 +675,16 @@ export default function App() {
                                        />
                                     )}
                                     
-                                    <div className="flex flex-col sm:flex-row items-center p-5 gap-4 relative z-10">
+                                    <div className="flex flex-col sm:flex-row items-center p-5 gap-4 relative z-10 w-full overflow-hidden">
                                       <motion.div 
                                         animate={fileItem.status === 'converting' ? { scale: [1, 1.05, 1] } : {}}
                                         transition={{ duration: 1, repeat: Infinity }}
-                                        className={cn("w-14 h-14 rounded-2xl flex items-center justify-center shrink-0 shadow-[inset_0_2px_10px_rgba(0,0,0,0.5)] border border-white/10", activeCatData.bg)}
+                                        className={cn("w-14 h-14 rounded-2xl flex items-center justify-center shrink-0 shadow-[inset_0_2px_10px_rgba(0,0,0,0.5)] border border-white/10 relative z-20", activeCatData.bg)}
                                       >
                                          <File className={cn("w-7 h-7 drop-shadow-md", activeCatData.color)} />
                                       </motion.div>
                                       
-                                      <div className="flex-1 min-w-0 w-full">
+                                      <div className="flex-1 min-w-0 w-full relative z-20">
                                         <p className="text-base font-bold text-indigo-50 truncate drop-shadow-sm">
                                           {fileItem.file.name}
                                         </p>
@@ -638,7 +693,10 @@ export default function App() {
                                             {formatBytes(fileItem.file.size)} • {ext.toUpperCase()}
                                           </span>
                                           {fileItem.status === 'converting' && (
-                                            <span className="flex items-center text-cyan-400 font-bold text-xs"><RefreshCw className="w-3 h-3 mr-1 animate-spin" /> Converting</span>
+                                            <span className="flex items-center text-cyan-400 font-bold text-xs">
+                                              <RefreshCw className="w-3 h-3 mr-1 animate-spin" /> 
+                                              Converting {fileItem.progress !== undefined ? `${fileItem.progress}%` : ''}
+                                            </span>
                                           )}
                                           {fileItem.status === 'success' && (
                                             <span className="flex items-center text-emerald-400 font-bold text-xs"><CheckCircle2 className="w-3 h-3 mr-1 drop-shadow-[0_0_5px_rgba(52,211,153,0.5)]" /> Success</span>
@@ -649,7 +707,7 @@ export default function App() {
                                         </div>
                                       </div>
                                       
-                                      <div className="flex items-center gap-3 w-full sm:w-auto mt-4 sm:mt-0 justify-end">
+                                      <div className="flex items-center gap-3 w-full sm:w-auto mt-4 sm:mt-0 justify-end relative z-20">
                                         {fileItem.status === 'idle' || fileItem.status === 'error' ? (
                                           <div className="flex items-center gap-3 bg-black/40 p-1.5 rounded-xl border border-white/10 shadow-inner">
                                             <span className="text-xs font-bold text-indigo-400 uppercase px-2 drop-shadow-sm">To</span>

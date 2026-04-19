@@ -97,7 +97,8 @@ async function convertImage(file: File, toExt: string): Promise<Blob> {
   });
 }
 
-async function convertDocxToPdf(file: File): Promise<Blob> {
+async function convertDocxToPdf(file: File, onProgress?: (p: number) => void): Promise<Blob> {
+  if (onProgress) onProgress(20);
   const container = document.createElement('div');
   container.style.position = 'absolute';
   container.style.left = '-9999px';
@@ -114,6 +115,7 @@ async function convertDocxToPdf(file: File): Promise<Blob> {
       ignoreFonts: false,
       breakPages: true,
     });
+    if (onProgress) onProgress(40);
 
     // docx-preview renders pages as <section class="docx"> inside the wrapper
     const pages = Array.from(container.querySelectorAll('.docx'));
@@ -146,17 +148,22 @@ async function convertDocxToPdf(file: File): Promise<Blob> {
           yOffset = 20;
       }
       pdf.addImage(imgData, 'PNG', 0, yOffset, pdfWidth, pdfHeight, undefined, 'FAST');
+      
+      if (onProgress) {
+        onProgress(40 + Math.floor((i / elementsToRender.length) * 50));
+      }
     }
 
+    if (onProgress) onProgress(90);
     return new Blob([pdf.output('blob')], { type: 'application/pdf' });
   } finally {
     document.body.removeChild(container);
   }
 }
 
-async function convertPdfToDocx(file: File, useOcr: boolean = false): Promise<Blob> {
+async function convertPdfToDocx(file: File, useOcr: boolean = false, onProgress?: (p: number) => void): Promise<Blob> {
   if (useOcr) {
-    return convertPdfToDocxWithOcr(file);
+    return convertPdfToDocxWithOcr(file, onProgress);
   }
 
   const arrayBuffer = await file.arrayBuffer();
@@ -166,6 +173,7 @@ async function convertPdfToDocx(file: File, useOcr: boolean = false): Promise<Bl
   const children: Paragraph[] = [];
 
   for (let i = 1; i <= pdf.numPages; i++) {
+    if (onProgress) onProgress(10 + Math.floor((i / pdf.numPages) * 80));
     const page = await pdf.getPage(i);
     const textContent = await page.getTextContent();
     const viewport = page.getViewport({ scale: 1.0 });
@@ -378,7 +386,7 @@ async function getOcrScheduler() {
   return ocrScheduler;
 }
 
-async function convertPdfToDocxWithOcr(file: File): Promise<Blob> {
+async function convertPdfToDocxWithOcr(file: File, onProgress?: (p: number) => void): Promise<Blob> {
   const arrayBuffer = await file.arrayBuffer();
   const pdfjsLib = await getPdfjs();
   const pdf = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
@@ -388,6 +396,7 @@ async function convertPdfToDocxWithOcr(file: File): Promise<Blob> {
   const children: Paragraph[] = [];
   // Use Promise.all to process pages simultaneously
   const pagePromises = [];
+  let completedPages = 0;
 
   for (let i = 1; i <= pdf.numPages; i++) {
     pagePromises.push((async () => {
@@ -398,7 +407,11 @@ async function convertPdfToDocxWithOcr(file: File): Promise<Blob> {
       canvas.width = viewport.width;
       canvas.height = viewport.height;
       const ctx = canvas.getContext('2d');
-      if (!ctx) return { i, data: null, scaleFactor: 1.0 };
+      if (!ctx) {
+        completedPages++;
+        if (onProgress) onProgress(10 + Math.floor((completedPages / pdf.numPages) * 80));
+        return { i, data: null, scaleFactor: 1.0 };
+      }
       
       ctx.fillStyle = 'white';
       ctx.fillRect(0, 0, canvas.width, canvas.height);
@@ -421,6 +434,8 @@ async function convertPdfToDocxWithOcr(file: File): Promise<Blob> {
       ctx.putImageData(imageData, 0, 0);
 
       const { data } = await scheduler.addJob('recognize', canvas);
+      completedPages++;
+      if (onProgress) onProgress(10 + Math.floor((completedPages / pdf.numPages) * 80));
       return { i, data, scaleFactor };
     })());
   }
@@ -526,7 +541,7 @@ async function convertPdfToDocxWithOcr(file: File): Promise<Blob> {
   return Packer.toBlob(doc);
 }
 
-async function performOcr(file: File, isPdf: boolean): Promise<Blob> {
+async function performOcr(file: File, isPdf: boolean, onProgress?: (p: number) => void): Promise<Blob> {
   const scheduler = await getOcrScheduler();
   
   let text = '';
@@ -537,6 +552,7 @@ async function performOcr(file: File, isPdf: boolean): Promise<Blob> {
     const pdf = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
     
     const pagePromises = [];
+    let completedPages = 0;
     for (let i = 1; i <= pdf.numPages; i++) {
       pagePromises.push((async () => {
         const page = await pdf.getPage(i);
@@ -551,8 +567,12 @@ async function performOcr(file: File, isPdf: boolean): Promise<Blob> {
           await page.render({ canvasContext: ctx, viewport, canvas: canvas as any }).promise;
           const imgData = canvas.toDataURL('image/png');
           const { data } = await scheduler.addJob('recognize', imgData);
+          completedPages++;
+          if (onProgress) onProgress(10 + Math.floor((completedPages / pdf.numPages) * 80));
           return { i, text: data?.text || '' };
         }
+        completedPages++;
+        if (onProgress) onProgress(10 + Math.floor((completedPages / pdf.numPages) * 80));
         return { i, text: '' };
       })());
     }
@@ -563,16 +583,18 @@ async function performOcr(file: File, isPdf: boolean): Promise<Blob> {
       if (res.text) text += res.text + '\n\n';
     }
   } else {
+    if (onProgress) onProgress(30);
     const imgUrl = URL.createObjectURL(file);
     const { data } = await scheduler.addJob('recognize', imgUrl);
     text = data?.text || '';
     URL.revokeObjectURL(imgUrl);
+    if (onProgress) onProgress(90);
   }
   
   return new Blob([text], { type: 'text/plain' });
 }
 
-async function extractPdfText(file: File): Promise<Blob> {
+async function extractPdfText(file: File, onProgress?: (p: number) => void): Promise<Blob> {
   const arrayBuffer = await file.arrayBuffer();
   const pdfjsLib = await getPdfjs();
   const pdf = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
@@ -581,6 +603,7 @@ async function extractPdfText(file: File): Promise<Blob> {
     const page = await pdf.getPage(i);
     const textContent = await page.getTextContent();
     
+    if (onProgress) onProgress(10 + Math.floor((i / pdf.numPages) * 80));
     const linesMap = new Map<number, any[]>();
     for (const item of textContent.items as any[]) {
       if (!item.str || (!item.str.trim() && item.str !== ' ')) continue;
@@ -790,59 +813,50 @@ async function convertData(file: File, fromExt: string, toExt: string): Promise<
   }
 }
 
-export async function convertFile(file: File, toExt: string, options?: { useOcr?: boolean }): Promise<{ blob: Blob, filename: string }> {
+export async function convertFile(file: File, toExt: string, options?: { useOcr?: boolean, onProgress?: (p: number) => void }): Promise<{ blob: Blob, filename: string }> {
   try {
     const fromExt = getExtension(file.name);
     const baseName = getBaseName(file.name);
+    const onProgress = options?.onProgress;
+    
+    if (onProgress) onProgress(10);
     
     // Handle OCR specific extension
     const isOcr = toExt === 'txt (OCR)';
     const actualToExt = isOcr ? 'txt' : toExt;
     const newFilename = `${baseName}.${actualToExt}`;
 
+    let resultBlob: Blob;
+
     if (isOcr) {
-      const blob = await performOcr(file, fromExt === 'pdf');
-      return { blob, filename: newFilename };
-    }
-
-    if (fromExt === 'pdf' && toExt === 'txt') {
+      resultBlob = await performOcr(file, fromExt === 'pdf', onProgress);
+    } else if (fromExt === 'pdf' && toExt === 'txt') {
       if (options?.useOcr) {
-        const blob = await performOcr(file, true);
-        return { blob, filename: newFilename };
+        resultBlob = await performOcr(file, true, onProgress);
+      } else {
+        resultBlob = await extractPdfText(file, onProgress);
       }
-      const blob = await extractPdfText(file);
-      return { blob, filename: newFilename };
+    } else if (fromExt === 'pdf' && toExt === 'docx') {
+      resultBlob = await convertPdfToDocx(file, options?.useOcr, onProgress);
+    } else if (fromExt === 'docx' && toExt === 'pdf') {
+      resultBlob = await convertDocxToPdf(file, onProgress);
+    } else if (toExt === 'pdf') {
+      resultBlob = await convertToPdf(file, fromExt);
+    } else if (fromExt === 'docx') {
+      resultBlob = await convertDocx(file, toExt);
+    } else if (fromExt === 'xlsx') {
+      resultBlob = await convertSpreadsheet(file, fromExt, toExt);
+    } else {
+      const imageExts = ['png', 'jpg', 'jpeg', 'webp', 'bmp', 'gif', 'svg', 'ico'];
+      if (imageExts.includes(fromExt) && imageExts.includes(toExt)) {
+        resultBlob = await convertImage(file, toExt);
+      } else {
+        resultBlob = await convertData(file, fromExt, toExt);
+      }
     }
 
-    if (fromExt === 'pdf' && toExt === 'docx') {
-      const blob = await convertPdfToDocx(file, options?.useOcr);
-      return { blob, filename: newFilename };
-    }
-
-    if (toExt === 'pdf') {
-      const blob = await convertToPdf(file, fromExt);
-      return { blob, filename: newFilename };
-    }
-
-    if (fromExt === 'docx') {
-      const blob = await convertDocx(file, toExt);
-      return { blob, filename: newFilename };
-    }
-
-    if (fromExt === 'xlsx') {
-      const blob = await convertSpreadsheet(file, fromExt, toExt);
-      return { blob, filename: newFilename };
-    }
-
-    const imageExts = ['png', 'jpg', 'jpeg', 'webp', 'bmp', 'gif', 'svg', 'ico'];
-    
-    if (imageExts.includes(fromExt) && imageExts.includes(toExt)) {
-      const blob = await convertImage(file, toExt);
-      return { blob, filename: newFilename };
-    }
-    
-    const blob = await convertData(file, fromExt, toExt);
-    return { blob, filename: newFilename };
+    if (onProgress) onProgress(100);
+    return { blob: resultBlob, filename: newFilename };
   } catch (error) {
     console.error('File conversion error:', error);
     if (error instanceof Error) {
