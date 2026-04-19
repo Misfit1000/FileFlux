@@ -9,11 +9,12 @@ import yaml from 'js-yaml';
 import { json2xml, xml2json } from 'xml-js';
 import JSZip from 'jszip';
 import { planConversionRoutes, type ConversionExecutionContext, type ConversionHandler, type FormatCategory } from './conversion-graph';
+import pdfWorkerUrl from 'pdfjs-dist/build/pdf.worker.min.mjs?url';
 
 // Dynamic import for pdfjs
 async function getPdfjs() {
   const pdfjsLib = await import('pdfjs-dist');
-  pdfjsLib.GlobalWorkerOptions.workerSrc = `https://unpkg.com/pdfjs-dist@${pdfjsLib.version}/build/pdf.worker.min.mjs`;
+  pdfjsLib.GlobalWorkerOptions.workerSrc = pdfWorkerUrl;
   return pdfjsLib;
 }
 
@@ -43,8 +44,6 @@ export const SUPPORTED_FORMATS: Record<string, string[]> = {
   pdf: ['txt', 'txt (OCR)', 'docx'],
 };
 
-export type ConversionMode = 'local' | 'high-fidelity';
-
 function normalizeExtension(extension: string) {
   const normalized = extension.trim().toLowerCase();
   if (normalized === 'yml') return 'yaml';
@@ -61,10 +60,6 @@ export function getBaseName(filename: string): string {
   const parts = filename.split('.');
   if (parts.length > 1) parts.pop();
   return parts.join('.');
-}
-
-export function requiresHighFidelityServer(file: File, toExt: string) {
-  return getExtension(file.name) === 'pdf' && toExt === 'docx';
 }
 
 const TWIPS_PER_POINT = 20;
@@ -1298,46 +1293,6 @@ export async function convertFile(file: File, toExt: string, options?: { useOcr?
     }
     throw new Error('An unexpected error occurred during conversion.');
   }
-}
-
-export async function convertPdfToDocxWithService(
-  file: File,
-  options?: { useOcr?: boolean; onProgress?: (p: number) => void },
-): Promise<{ blob: Blob; filename: string }> {
-  const formData = new FormData();
-  formData.append('file', file);
-  formData.append('ocrMode', options?.useOcr ? 'force' : 'auto');
-  formData.append('wysiwyg', 'true');
-
-  if (options?.onProgress) {
-    options.onProgress(15);
-  }
-
-  const response = await fetch('/api/convert/pdf-to-docx', {
-    method: 'POST',
-    body: formData,
-  });
-
-  if (!response.ok) {
-    const payload = await response.json().catch(() => null);
-    throw new Error(payload?.error || 'High-fidelity conversion is unavailable right now.');
-  }
-
-  if (options?.onProgress) {
-    options.onProgress(95);
-  }
-
-  const blob = await response.blob();
-  const outputName = response.headers.get('x-output-filename') || `${getBaseName(file.name)}.docx`;
-
-  if (options?.onProgress) {
-    options.onProgress(100);
-  }
-
-  return {
-    blob,
-    filename: outputName,
-  };
 }
 
 export async function zipFiles(files: { name: string, blob: Blob }[]): Promise<Blob> {

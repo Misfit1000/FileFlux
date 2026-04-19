@@ -23,11 +23,12 @@ import {
   CloudOff,
 } from 'lucide-react';
 import { cn } from './lib/utils';
-import { SUPPORTED_FORMATS, getExtension, convertFile, convertPdfToDocxWithService, requiresHighFidelityServer, zipFiles, type ConversionMode } from './lib/converters';
+import { SUPPORTED_FORMATS, getExtension, convertFile, zipFiles } from './lib/converters';
 import { renderAsync } from 'docx-preview';
 import { ErrorBoundary } from './components/ErrorBoundary';
 import { Prism as SyntaxHighlighter } from 'react-syntax-highlighter';
 import { vscDarkPlus } from 'react-syntax-highlighter/dist/esm/styles/prism';
+import { BrowserToolbox } from './components/BrowserToolbox';
 
 const MAX_FILE_SIZE_BYTES = 50 * 1024 * 1024;
 const MAX_TOTAL_FILES = 24;
@@ -270,7 +271,6 @@ export default function App() {
   const [useOcrForPdf, setUseOcrForPdf] = useState(false);
   const [isConvertingAny, setIsConvertingAny] = useState(false);
   const [isZipping, setIsZipping] = useState(false);
-  const [pdfDocxMode, setPdfDocxMode] = useState<ConversionMode>('high-fidelity');
   const filesRef = useRef<FileItem[]>([]);
 
   useEffect(() => {
@@ -335,24 +335,7 @@ export default function App() {
             },
           };
 
-          const shouldUseHighFidelity = pdfDocxMode === 'high-fidelity' && requiresHighFidelityServer(fileItem.file, fileItem.targetFormat);
-
-          let conversionResult;
-
-          if (shouldUseHighFidelity) {
-            try {
-              conversionResult = await convertPdfToDocxWithService(fileItem.file, conversionOptions);
-            } catch (serviceError) {
-              setError(
-                serviceError instanceof Error
-                  ? `${serviceError.message} Falling back to the local converter for ${fileItem.file.name}.`
-                  : `High-fidelity conversion is unavailable. Falling back to the local converter for ${fileItem.file.name}.`,
-              );
-              conversionResult = await convertFile(fileItem.file, fileItem.targetFormat, conversionOptions);
-            }
-          } else {
-            conversionResult = await convertFile(fileItem.file, fileItem.targetFormat, conversionOptions);
-          }
+          const conversionResult = await convertFile(fileItem.file, fileItem.targetFormat, conversionOptions);
 
           const { blob, filename } = conversionResult;
           const url = URL.createObjectURL(blob);
@@ -828,30 +811,12 @@ export default function App() {
                 </div>
 
               <div className="mb-6 rounded-[1.4rem] border border-white/10 bg-white/6 p-4 sm:p-5">
-                <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
-                  <div className="max-w-2xl">
-                    <p className="text-[0.68rem] font-bold uppercase tracking-[0.28em] text-[var(--text-soft)]">PDF to DOCX mode</p>
-                    <h3 className="font-display text-xl font-bold text-white">Choose speed or high fidelity</h3>
-                    <p className="mt-1 text-sm leading-7 text-[var(--text-muted)]">
-                      High-fidelity mode uses a server-backed conversion route for production PDFs. Local mode stays fully in-browser and works as a fallback.
-                    </p>
-                  </div>
-                  <div className="flex flex-wrap gap-3">
-                    <button
-                      type="button"
-                      onClick={() => setPdfDocxMode('high-fidelity')}
-                      className={cn('anime-cta-secondary', pdfDocxMode === 'high-fidelity' && 'border-cyan-300/45 bg-cyan-300/14 text-white')}
-                    >
-                      High fidelity
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => setPdfDocxMode('local')}
-                      className={cn('anime-cta-secondary', pdfDocxMode === 'local' && 'border-cyan-300/45 bg-cyan-300/14 text-white')}
-                    >
-                      Fast local
-                    </button>
-                  </div>
+                <div className="flex flex-col gap-2">
+                  <p className="text-[0.68rem] font-bold uppercase tracking-[0.28em] text-[var(--text-soft)]">Browser-only processing</p>
+                  <h3 className="font-display text-xl font-bold text-white">All conversions stay local in this build</h3>
+                  <p className="text-sm leading-7 text-[var(--text-muted)]">
+                    PDF, image, text, and structured-data tools now stay on-device. OCR and conversion steps run directly in the browser.
+                  </p>
                 </div>
               </div>
 
@@ -1228,6 +1193,8 @@ export default function App() {
               </div>
             </motion.div>
           </section>
+
+          <BrowserToolbox />
         </main>
       </div>
     </div>

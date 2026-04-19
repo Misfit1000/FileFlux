@@ -1,10 +1,6 @@
 # FileFlux
 
-FileFlux is a local-first file conversion app built with Vite and React. It supports images, documents, and structured data with previews, optional OCR for PDFs, and batch zip downloads.
-
-For production use, PDF to DOCX now supports two paths:
-- `Fast local` keeps conversion in the browser.
-- `High fidelity` sends PDF to a server-side conversion route for better layout preservation in DOCX output.
+FileFlux is a browser-only conversion and utility suite built with Vite and React. It supports images, documents, structured data, text tooling, and browser-side helpers while keeping processing on-device.
 
 ## Run locally
 
@@ -17,9 +13,27 @@ Prerequisite: Node.js 20+
 3. Open:
    `http://localhost:3000`
 
-## High-fidelity PDF to DOCX
+## Browser-only toolbox
 
-Set `CONVERTAPI_SECRET` in your Vercel project or local environment to enable the server-backed PDF to DOCX route. Without it, the rest of the app still works and users can fall back to local conversion.
+The toolbox section runs completely in the browser and currently includes:
+
+- JSON formatting
+- Base64 encoding and decoding
+- URL encoding and decoding
+- Markdown preview
+- Regex testing
+- Hash generation
+- Word counting
+- Case conversion
+- Lorem ipsum generation
+- UUID generation
+- Password generation
+- Color conversion
+- Timestamp conversion
+- JWT decoding
+- Query string parsing
+- HTML escaping and unescaping
+- Line cleanup tools
 
 ## Available scripts
 
