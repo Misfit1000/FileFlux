@@ -589,8 +589,8 @@ export default function App() {
           </AnimatePresence>
         </header>
 
-        <main className="grid flex-1 gap-6 lg:grid-cols-[300px_minmax(0,1fr)]">
-          <aside className="space-y-6">
+        <main className="grid flex-1 gap-8 xl:grid-cols-[320px_minmax(0,1fr)]">
+          <aside className="order-2 space-y-6 xl:order-1">
             <section className="anime-panel rounded-[2rem] p-5">
               <div className="mb-4 flex items-center justify-between">
                 <div>
@@ -622,8 +622,14 @@ export default function App() {
             </section>
 
             <section className="anime-panel rounded-[2rem] p-5">
-              <p className="mb-2 text-[0.68rem] font-bold uppercase tracking-[0.3em] text-[var(--text-soft)]">Status deck</p>
-                <div className="grid gap-3 sm:grid-cols-3 lg:grid-cols-1">
+              <div className="mb-4 flex items-center justify-between">
+                <div>
+                  <p className="text-[0.68rem] font-bold uppercase tracking-[0.3em] text-[var(--text-soft)]">Mission control</p>
+                  <h2 className="font-display text-xl font-bold text-white">Progress and guide</h2>
+                </div>
+                <Shield className="h-5 w-5 text-cyan-100" />
+              </div>
+              <div className="grid gap-3 sm:grid-cols-3 xl:grid-cols-1">
                   <div className="anime-stat-card">
                     <span className="anime-stat-label">Queued</span>
                     <strong className="anime-stat-value">{pendingCount}</strong>
@@ -637,14 +643,10 @@ export default function App() {
                     <strong className="anime-stat-value">{successfulCount}</strong>
                   </div>
                 </div>
-                <div className="mt-3 rounded-[1rem] border border-white/8 bg-white/5 px-4 py-3 text-xs text-[var(--text-muted)]">
-                  Batch weight: {formatBytes(totalQueuedBytes)} of {formatBytes(MAX_TOTAL_BATCH_BYTES)}
-                </div>
-            </section>
-
-            <section className="anime-panel rounded-[2rem] p-5">
-              <p className="mb-3 text-[0.68rem] font-bold uppercase tracking-[0.3em] text-[var(--text-soft)]">Quick guide</p>
-              <div className="space-y-3">
+              <div className="mt-4 rounded-[1.2rem] border border-white/8 bg-white/5 px-4 py-3 text-xs text-[var(--text-muted)]">
+                Batch weight: {formatBytes(totalQueuedBytes)} of {formatBytes(MAX_TOTAL_BATCH_BYTES)}
+              </div>
+              <div className="mt-5 space-y-3">
                 <div className="anime-step-card">
                   <span className="anime-step-number">1</span>
                   <div>
@@ -670,30 +672,56 @@ export default function App() {
             </section>
           </aside>
 
-          <section className="anime-panel relative overflow-hidden rounded-[2.2rem]">
+          <section className="anime-panel relative order-1 overflow-hidden rounded-[2.4rem] xl:order-2">
             <div className="anime-panel-glow" />
             <div className="anime-sea-ribbon" />
-            <div className="relative flex h-full flex-col p-5 sm:p-7 lg:p-8">
-              <div className="mb-6 flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
-                <div className="max-w-2xl">
+            <div className="relative flex h-full flex-col p-5 sm:p-7 lg:p-10">
+              <div className="mb-8 grid gap-6 2xl:grid-cols-[minmax(0,1.4fr)_minmax(280px,0.8fr)] 2xl:items-end">
+                <div className="max-w-3xl">
                   <p className="text-[0.72rem] font-bold uppercase tracking-[0.35em] text-[var(--text-soft)]">Anime-inspired interface</p>
-                  <h2 className="font-display text-3xl font-extrabold leading-tight text-white sm:text-4xl">
-                    Clean file conversion with a calm ocean-sky feel.
+                  <h2 className="font-display text-4xl font-extrabold leading-[1.05] text-white sm:text-5xl xl:text-[3.6rem]">
+                    Slick file conversion with a calm ocean-sky stage.
                   </h2>
-                  <p className="mt-3 max-w-xl text-sm leading-7 text-[var(--text-muted)] sm:text-base">
-                    Pick a mode, add files, choose the output format, then preview and download each result without leaving the browser.
+                  <p className="mt-4 max-w-2xl text-base leading-8 text-[var(--text-muted)] sm:text-lg">
+                    Pick a mode, drop in files, choose the output, and preview every result in one responsive workspace built to feel sharp on both desktop and mobile.
                   </p>
+                  <div className="mt-6 flex flex-wrap gap-3">
+                    <div className="anime-chip">
+                      <Shield className="h-4 w-4" />
+                      Local-first workflow
+                    </div>
+                    <div className="anime-chip">
+                      <WandSparkles className="h-4 w-4" />
+                      Anime-coded visuals
+                    </div>
+                    <div className="anime-chip">
+                      <Sparkles className="h-4 w-4" />
+                      Preview before download
+                    </div>
+                  </div>
                 </div>
-                <div className="anime-hero-pills">
-                  {getFormatPills(activeCategory).map((format) => (
-                    <span key={format} className="anime-pill">
-                      {format}
-                    </span>
-                  ))}
+                <div className="anime-hero-card">
+                  <p className="text-[0.68rem] font-bold uppercase tracking-[0.28em] text-[var(--text-soft)]">Current mode</p>
+                  <div className="mt-3 flex items-center gap-4">
+                    <div className={cn('anime-category-icon bg-gradient-to-br', activeCatData.accent)}>
+                      <activeCatData.icon className={cn('h-6 w-6', activeCatData.color)} />
+                    </div>
+                    <div>
+                      <div className="font-display text-2xl font-bold text-white">{activeCatData.label}</div>
+                      <div className="text-sm text-[var(--text-muted)]">{activeCatData.description}</div>
+                    </div>
+                  </div>
+                  <div className="anime-hero-pills mt-5">
+                    {getFormatPills(activeCategory).map((format) => (
+                      <span key={format} className="anime-pill">
+                        {format}
+                      </span>
+                    ))}
+                  </div>
                 </div>
               </div>
 
-                <div className="mb-6 grid gap-3 md:grid-cols-3">
+                <div className="mb-8 grid gap-4 md:grid-cols-3">
                   <div className="anime-focus-card">
                     <span className="anime-focus-label">Local-first</span>
                     <strong className="anime-focus-value">No account wall</strong>
@@ -706,25 +734,6 @@ export default function App() {
                     <span className="anime-focus-label">Scanned pages</span>
                     <strong className="anime-focus-value">OCR ready</strong>
                   </div>
-                </div>
-
-              <div className="mb-6 grid gap-3 lg:grid-cols-4">
-                <div className="anime-focus-card">
-                  <span className="anime-focus-label">Security</span>
-                  <strong className="anime-focus-value">Bounded uploads</strong>
-                </div>
-                <div className="anime-focus-card">
-                  <span className="anime-focus-label">Batch caps</span>
-                  <strong className="anime-focus-value">{MAX_TOTAL_FILES} files max</strong>
-                </div>
-                <div className="anime-focus-card">
-                  <span className="anime-focus-label">Queue size</span>
-                  <strong className="anime-focus-value">{formatBytes(totalQueuedBytes)}</strong>
-                </div>
-                <div className="anime-focus-card">
-                  <span className="anime-focus-label">Failures</span>
-                  <strong className="anime-focus-value">{failedCount}</strong>
-                </div>
                 </div>
 
               <div className="mb-6 rounded-[1.4rem] border border-white/10 bg-white/6 p-4 sm:p-5">
@@ -768,7 +777,7 @@ export default function App() {
                       <div
                         {...getRootProps()}
                         className={cn(
-                          'anime-dropzone group flex min-h-[520px] flex-1 cursor-pointer flex-col items-center justify-center overflow-hidden rounded-[2rem] border p-8 text-center transition-all duration-300 sm:p-10',
+                          'anime-dropzone group flex min-h-[580px] flex-1 cursor-pointer flex-col items-center justify-center overflow-hidden rounded-[2.2rem] border px-6 py-10 text-center transition-all duration-300 sm:px-10 sm:py-14',
                           isDragReject && 'border-rose-300/60 bg-rose-500/10',
                           isDragAccept && 'border-cyan-300/70 bg-cyan-400/12',
                           isDragActive && !isDragReject && activeCatData.border,
@@ -796,7 +805,7 @@ export default function App() {
                           </p>
                         </div>
 
-                        <div className="relative z-10 mt-8 flex flex-wrap justify-center gap-3">
+                        <div className="relative z-10 mt-10 flex flex-wrap justify-center gap-3">
                           {getFormatPills(activeCategory).map((format) => (
                             <span key={format} className="anime-pill">
                               {format}
@@ -807,10 +816,11 @@ export default function App() {
                     </motion.div>
                   ) : (
                     <motion.div key="queue" initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} className="flex flex-1 flex-col">
-                      <div className="mb-5 flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
+                      <div className="mb-6 flex flex-col gap-4 xl:flex-row xl:items-center xl:justify-between">
                         <div>
                           <p className="text-[0.72rem] font-bold uppercase tracking-[0.32em] text-[var(--text-soft)]">Current queue</p>
                           <h3 className="font-display text-2xl font-bold text-white">Files in motion: {files.length}</h3>
+                          <p className="mt-2 text-sm text-[var(--text-muted)]">Keep your batch flowing with per-file format controls, previews, and download actions.</p>
                         </div>
                         <div className="flex flex-wrap gap-3">
                           <div {...getRootProps()} className="cursor-pointer">
@@ -827,7 +837,7 @@ export default function App() {
                         </div>
                       </div>
 
-                      <div className="anime-file-list mb-6 flex-1 space-y-4 overflow-y-auto pr-1">
+                      <div className="anime-file-list mb-6 flex-1 space-y-5 overflow-y-auto pr-1">
                         <AnimatePresence>
                           {files.map((fileItem) => {
                             const ext = getExtension(fileItem.file.name);
