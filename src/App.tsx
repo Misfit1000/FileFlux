@@ -221,6 +221,7 @@ export default function App() {
   const [isConvertingAny, setIsConvertingAny] = useState(false);
   const [isZipping, setIsZipping] = useState(false);
   const [theme, setTheme] = useState('dark');
+  const [showAbout, setShowAbout] = useState(false);
 
   useEffect(() => {
     if (theme === 'light') {
@@ -229,6 +230,22 @@ export default function App() {
       document.documentElement.removeAttribute('data-theme');
     }
   }, [theme]);
+
+  // Global Progress Logic
+  const filesToConvert = files.filter(f => f.status !== 'success');
+  const numConverting = files.filter(f => f.status === 'converting').length;
+  const isMultipleConverting = filesToConvert.length > 1 && numConverting > 0;
+  
+  let globalProgress = 0;
+  if (isMultipleConverting) {
+    const totalProgress = filesToConvert.reduce((acc, f) => {
+      if (f.status === 'success') return acc + 100;
+      if (f.status === 'error') return acc + 100; // Count errors as finished to not stall bar
+      if (f.status === 'converting') return acc + (f.progress || 0);
+      return acc;
+    }, 0);
+    globalProgress = totalProgress / filesToConvert.length;
+  }
 
   const handleConvert = async () => {
     if (files.length === 0) return;
@@ -337,7 +354,7 @@ export default function App() {
       const url = URL.createObjectURL(zipBlob);
       const a = document.createElement('a');
       a.href = url;
-      a.download = `FileFlux_Files_${Date.now()}.zip`;
+      a.download = `FilefluxConvert_Files_${Date.now()}.zip`;
       document.body.appendChild(a);
       a.click();
       document.body.removeChild(a);
@@ -404,51 +421,60 @@ export default function App() {
   };
 
   return (
-    <div className="min-h-screen bg-[#070b19] text-indigo-50 font-sans selection:bg-cyan-500/40 flex flex-col relative overflow-hidden">
+    <div className="min-h-screen bg-slate-950 text-slate-100 font-sans selection:bg-cyan-500/40 flex flex-col relative overflow-hidden">
       
-      {/* Anime Sky Background */}
+      {/* Clean Dark Mode Background */}
       <div className="fixed inset-0 z-0 pointer-events-none">
-        {/* Base deep sky */}
-        <div className="absolute inset-0 bg-gradient-to-b from-[#091128] via-[#163365] to-[#147998]" />
-        {/* Glow at horizon (Sunrise/Sunset) */}
-        <div className="absolute bottom-0 w-full h-[50%] bg-gradient-to-t from-[#ff8c78]/40 via-[#ffba92]/10 to-transparent" />
-        {/* Ocean body */}
-        <div className="absolute bottom-0 w-full h-[25%] bg-gradient-to-b from-[#0e5170] to-[#041a29] border-t border-cyan-400/30" />
-        
-        {/* Atmospheric Clouds / Orbs */}
-        <div className="absolute top-[10%] left-[20%] w-[50%] h-[30%] bg-cyan-400/20 blur-[120px] rounded-full mix-blend-screen" />
-        <div className="absolute top-[30%] right-[10%] w-[40%] h-[40%] bg-indigo-500/30 blur-[130px] rounded-full mix-blend-screen" />
-        <div className="absolute bottom-[20%] left-[-10%] w-[40%] h-[20%] bg-[#ff9a76]/20 blur-[100px] rounded-full mix-blend-screen" />
+        <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_top,_var(--tw-gradient-stops))] from-slate-900 via-slate-950 to-slate-950" />
+        <div className="absolute top-[10%] left-[20%] w-[50%] h-[30%] bg-cyan-500/5 blur-[120px] rounded-full mix-blend-screen" />
+        <div className="absolute bottom-[20%] right-[10%] w-[40%] h-[40%] bg-indigo-500/5 blur-[130px] rounded-full mix-blend-screen" />
       </div>
 
       {/* Navbar */}
-      <header className="bg-[#0f172a]/40 backdrop-blur-xl border-b border-white/10 sticky top-0 z-50">
+      <header className="bg-slate-900/50 backdrop-blur-xl border-b border-white/5 sticky top-0 z-50">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between">
           <div className="flex items-center gap-3">
             <div className="bg-gradient-to-br from-cyan-400 to-indigo-500 p-2 rounded-xl shadow-[0_0_15px_rgba(34,211,238,0.4)]">
               <Layers className="w-5 h-5 text-white" />
             </div>
             <h1 className="text-xl font-bold tracking-tight text-white drop-shadow-[0_2px_4px_rgba(0,0,0,0.5)]">
-              FileFlux
+              FilefluxConvert
             </h1>
           </div>
           <div className="flex items-center gap-3">
             <button 
               onClick={() => setTheme(t => t === 'dark' ? 'light' : 'dark')}
-              className="p-2 rounded-full border border-white/10 hover:bg-white/10 text-indigo-200 hover:text-white transition-colors mr-2 shadow-[0_4px_12px_rgba(0,0,0,0.2)]"
+              className="p-2 rounded-full border border-white/10 hover:bg-white/10 text-slate-300 hover:text-white transition-colors mr-2 shadow-[0_4px_12px_rgba(0,0,0,0.2)]"
               title={theme === 'dark' ? "Switch to Light Mode" : "Switch to Dark Mode"}
             >
               {theme === 'dark' ? <Sun className="w-5 h-5" /> : <Moon className="w-5 h-5" />}
             </button>
             <button 
-              onClick={() => alert("FileFlux allows you to flexibly convert any file to dozens of formats. Just drag and drop, select your target output format, and hit convert! We use a combination of web assembly native processing and serverless processing.")}
-              className="text-sm flex items-center gap-2 font-bold text-indigo-100 hover:text-white transition-colors bg-white/5 hover:bg-white/10 px-4 py-2 rounded-full border border-white/10 shadow-[0_4px_12px_rgba(0,0,0,0.2)]"
+              onClick={() => setShowAbout(true)}
+              className="text-sm flex items-center gap-2 font-bold text-slate-200 hover:text-white transition-colors bg-white/5 hover:bg-white/10 px-4 py-2 rounded-full border border-white/10 shadow-[0_4px_12px_rgba(0,0,0,0.2)]"
             >
               <HelpCircle className="w-4 h-4" />
-              What is FileFlux?
+              What is FilefluxConvert?
             </button>
           </div>
         </div>
+        
+        {/* Global Progress Bar for Batch Conversions */}
+        <AnimatePresence>
+          {isMultipleConverting && (
+            <motion.div
+              initial={{ height: 0, opacity: 0 }}
+              animate={{ height: 4, opacity: 1 }}
+              exit={{ height: 0, opacity: 0 }}
+              className="w-full bg-black/50"
+            >
+              <div 
+                className="h-full bg-gradient-to-r from-cyan-400 to-indigo-500 shadow-[0_0_15px_rgba(34,211,238,0.8)] transition-all duration-300 ease-out" 
+                style={{ width: `${globalProgress}%` }} 
+              />
+            </motion.div>
+          )}
+        </AnimatePresence>
       </header>
 
       <main className="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-8 md:py-12 flex flex-col lg:flex-row gap-8 relative z-10">
@@ -915,6 +941,65 @@ export default function App() {
 
         </div>
       </main>
+
+      {/* About Modal */}
+      <AnimatePresence>
+        {showAbout && (
+          <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              className="absolute inset-0 bg-black/60 backdrop-blur-md"
+              onClick={() => setShowAbout(false)}
+            />
+            <motion.div
+              initial={{ scale: 0.9, opacity: 0, y: 20 }}
+              animate={{ scale: 1, opacity: 1, y: 0 }}
+              exit={{ scale: 0.9, opacity: 0, y: 20 }}
+              className="relative bg-[#0f1b33] border border-white/20 shadow-[0_20px_60px_rgba(0,0,0,0.8)] rounded-3xl p-8 max-w-lg w-full z-10"
+            >
+              <div className="flex justify-between items-start mb-6">
+                <div className="flex items-center gap-3">
+                  <div className="bg-gradient-to-br from-cyan-400 to-indigo-500 p-2.5 rounded-xl shadow-[0_0_15px_rgba(34,211,238,0.4)]">
+                    <Layers className="w-6 h-6 text-white" />
+                  </div>
+                  <h2 className="text-2xl font-bold text-white drop-shadow-md">About FilefluxConvert</h2>
+                </div>
+                <button
+                  onClick={() => setShowAbout(false)}
+                  className="p-2 text-indigo-300 hover:text-white hover:bg-white/10 rounded-xl transition-colors shrink-0"
+                >
+                  <X className="w-6 h-6" />
+                </button>
+              </div>
+              <div className="space-y-4 text-indigo-100/90 leading-relaxed text-sm">
+                <p>
+                  <strong className="text-cyan-300">FilefluxConvert</strong> is a next-generation file conversion tool that runs entirely within your browser natively.
+                </p>
+                <p>
+                  Unlike traditional cloud converters that require you to upload your sensitive data to mysterious servers, 
+                  FilefluxConvert utilizes advanced WebAssembly (Wasm) and native web APIs to securely process your files locally on your own machine.
+                </p>
+                <ul className="space-y-2 mt-4 ml-2 list-disc list-inside">
+                  <li><strong>Limitless formats:</strong> Convert between images, PDFs, word docs, data arrays, and more.</li>
+                  <li><strong>Optical Character Recognition (OCR):</strong> Extract deep text from scanned PDFs flawlessly.</li>
+                  <li><strong>Total Privacy:</strong> Your files never leave your device. Zero cloud uploads.</li>
+                  <li><strong>Lightning Fast:</strong> Batch conversion relies on your device's multi-thread capabilities.</li>
+                </ul>
+              </div>
+              <div className="mt-8 pt-6 border-t border-white/10 flex justify-end">
+                <button
+                  onClick={() => setShowAbout(false)}
+                  className="px-6 py-2.5 bg-gradient-to-r from-cyan-500 to-indigo-500 hover:from-cyan-400 hover:to-indigo-400 text-white rounded-xl font-bold transition-all shadow-[0_4px_15px_rgba(34,211,238,0.3)] hover:-translate-y-0.5"
+                >
+                  Got it!
+                </button>
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
     </div>
   );
 }
