@@ -8,6 +8,7 @@ import { AlignmentType, Document, Packer, Paragraph, Table, TableCell, TableRow,
 import yaml from 'js-yaml';
 import { json2xml, xml2json } from 'xml-js';
 import JSZip from 'jszip';
+import { planConversionRoutes, type ConversionExecutionContext, type ConversionHandler, type FormatCategory } from './conversion-graph';
 
 // Dynamic import for pdfjs
 async function getPdfjs() {
@@ -44,9 +45,16 @@ export const SUPPORTED_FORMATS: Record<string, string[]> = {
 
 export type ConversionMode = 'local' | 'high-fidelity';
 
+function normalizeExtension(extension: string) {
+  const normalized = extension.trim().toLowerCase();
+  if (normalized === 'yml') return 'yaml';
+  if (normalized === 'htm') return 'html';
+  return normalized;
+}
+
 export function getExtension(filename: string): string {
   const parts = filename.split('.');
-  return parts.length > 1 ? parts.pop()?.toLowerCase() || '' : '';
+  return parts.length > 1 ? normalizeExtension(parts.pop() || '') : '';
 }
 
 export function getBaseName(filename: string): string {
@@ -560,6 +568,8 @@ async function convertPdfToDocx(file: File, useOcr: boolean = false, onProgress?
   const pdfjsLib = await getPdfjs();
   const pdf = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
   const sections: { properties: any; children: DocxPageChild[] }[] = [];
+  let pagesWithoutExtractableText = 0;
+  let extractedCharacterCount = 0;
 
   for (let i = 1; i <= pdf.numPages; i++) {
     if (onProgress) onProgress(10 + Math.floor((i / pdf.numPages) * 80));
@@ -569,7 +579,12 @@ async function convertPdfToDocx(file: File, useOcr: boolean = false, onProgress?
     const [, , pdfWidth = viewport.width, pdfHeight = viewport.height] = page.view || [0, 0, viewport.width, viewport.height];
     const pageWidthTwips = Math.max(Math.round(pdfWidth * TWIPS_PER_POINT), 1);
     const pageHeightTwips = Math.max(Math.round(pdfHeight * TWIPS_PER_POINT), 1);
-    const lineLayouts = buildPdfLineLayouts(getPdfWordItems(textContent.items as any[]));
+    const wordItems = getPdfWordItems(textContent.items as any[]);
+    const lineLayouts = buildPdfLineLayouts(wordItems);
+    extractedCharacterCount += wordItems.reduce((sum, item) => sum + item.text.replace(/\s+/g, '').length, 0);
+    if (lineLayouts.length === 0) {
+      pagesWithoutExtractableText += 1;
+    }
     const children = buildDocxBlocksFromPdfLines(lineLayouts, viewport.width, pageWidthTwips);
 
     sections.push({
@@ -589,6 +604,15 @@ async function convertPdfToDocx(file: File, useOcr: boolean = false, onProgress?
       },
       children: children.length > 0 ? children : [new Paragraph({ children: [new TextRun('No text found')] })],
     });
+  }
+
+  const mostlyImageBasedPdf =
+    pagesWithoutExtractableText === pdf.numPages ||
+    (pdf.numPages > 0 && pagesWithoutExtractableText / pdf.numPages >= 0.5) ||
+    extractedCharacterCount < Math.max(24, pdf.numPages * 12);
+
+  if (mostlyImageBasedPdf) {
+    return convertPdfToDocxWithOcr(file, onProgress);
   }
 
   const doc = new Document({
@@ -967,25 +991,27 @@ async function convertSpreadsheet(file: File, fromExt: string, toExt: string): P
 }
 
 function parseData(text: string, ext: string): any {
-  if (ext === 'json') return JSON.parse(text);
-  if (ext === 'yaml') return yaml.load(text);
-  if (ext === 'xml') {
+  const normalizedExt = normalizeExtension(ext);
+  if (normalizedExt === 'json') return JSON.parse(text);
+  if (normalizedExt === 'yaml') return yaml.load(text);
+  if (normalizedExt === 'xml') {
     const raw = xml2json(text, { compact: true, spaces: 2 });
     return JSON.parse(raw);
   }
-  if (ext === 'csv') return Papa.parse(text, { header: true, skipEmptyLines: true }).data;
+  if (normalizedExt === 'csv') return Papa.parse(text, { header: true, skipEmptyLines: true }).data;
   return { content: text };
 }
 
 function stringifyData(data: any, toExt: string): { result: string, mimeType: string } {
-  if (toExt === 'json') return { result: JSON.stringify(data, null, 2), mimeType: 'application/json' };
-  if (toExt === 'yaml') return { result: yaml.dump(data), mimeType: 'text/yaml' };
-  if (toExt === 'xml') return { result: json2xml(JSON.stringify(data), { compact: true, spaces: 2 }), mimeType: 'application/xml' };
-  if (toExt === 'csv') {
+  const normalizedToExt = normalizeExtension(toExt);
+  if (normalizedToExt === 'json') return { result: JSON.stringify(data, null, 2), mimeType: 'application/json' };
+  if (normalizedToExt === 'yaml') return { result: yaml.dump(data), mimeType: 'text/yaml' };
+  if (normalizedToExt === 'xml') return { result: json2xml(JSON.stringify(data), { compact: true, spaces: 2 }), mimeType: 'application/xml' };
+  if (normalizedToExt === 'csv') {
     let arr = Array.isArray(data) ? data : typeof data === 'object' && data !== null ? [data] : [{ value: data }];
     return { result: Papa.unparse(arr), mimeType: 'text/csv' };
   }
-  if (toExt === 'txt') {
+  if (normalizedToExt === 'txt') {
     const res = typeof data === 'string' ? data : JSON.stringify(data, null, 2);
     return { result: res, mimeType: 'text/plain' };
   }
@@ -1048,6 +1074,163 @@ async function convertData(file: File, fromExt: string, toExt: string): Promise<
   }
 }
 
+const IMAGE_EXTENSIONS = ['png', 'jpg', 'jpeg', 'webp', 'bmp', 'gif', 'svg', 'ico'] as const;
+const TEXT_DATA_EXTENSIONS = ['txt', 'md', 'html', 'json', 'csv', 'xml', 'yaml'] as const;
+
+const FORMAT_CATEGORIES: Record<string, FormatCategory> = {
+  png: 'image',
+  jpg: 'image',
+  jpeg: 'image',
+  webp: 'image',
+  bmp: 'image',
+  gif: 'image',
+  svg: 'image',
+  ico: 'image',
+  pdf: 'document',
+  docx: 'document',
+  txt: 'text',
+  md: 'text',
+  html: 'text',
+  json: 'data',
+  csv: 'data',
+  xml: 'data',
+  yaml: 'data',
+  xlsx: 'spreadsheet',
+};
+
+const CONVERSION_HANDLERS: ConversionHandler[] = [
+  {
+    name: 'pdf-docx-layout',
+    from: ['pdf'],
+    to: ['docx'],
+    priority: 0,
+    lossless: false,
+    canHandle: (_from, _to, context) => !context.useOcr,
+    convert: (file, _from, _to, context) => convertPdfToDocx(file, false, context.onProgress),
+  },
+  {
+    name: 'pdf-docx-ocr',
+    from: ['pdf'],
+    to: ['docx'],
+    priority: 3,
+    lossless: false,
+    convert: (file, _from, _to, context) => convertPdfToDocxWithOcr(file, context.onProgress),
+  },
+  {
+    name: 'pdf-text-extract',
+    from: ['pdf'],
+    to: ['txt'],
+    priority: 0,
+    lossless: false,
+    canHandle: (_from, _to, context) => !context.useOcr,
+    convert: (file, _from, _to, context) => extractPdfText(file, context.onProgress),
+  },
+  {
+    name: 'pdf-text-ocr',
+    from: ['pdf'],
+    to: ['txt'],
+    priority: 2,
+    lossless: false,
+    convert: (file, _from, _to, context) => performOcr(file, true, context.onProgress),
+  },
+  {
+    name: 'docx-reader',
+    from: ['docx'],
+    to: ['txt', 'html'],
+    priority: 0,
+    lossless: false,
+    convert: (file, from, to) => convertDocx(file, to),
+  },
+  {
+    name: 'docx-pdf-render',
+    from: ['docx'],
+    to: ['pdf'],
+    priority: 0,
+    lossless: false,
+    convert: (file, _from, _to, context) => convertDocxToPdf(file, context.onProgress),
+  },
+  {
+    name: 'spreadsheet-export',
+    from: ['xlsx'],
+    to: ['csv', 'json', 'xml', 'yaml', 'txt'],
+    priority: 0,
+    lossless: false,
+    convert: (file, from, to) => convertSpreadsheet(file, from, to),
+  },
+  {
+    name: 'image-raster',
+    from: [...IMAGE_EXTENSIONS],
+    to: [...IMAGE_EXTENSIONS],
+    priority: 0,
+    lossless: false,
+    canHandle: (from, to) => from !== to,
+    convert: (file, _from, to) => convertImage(file, to),
+  },
+  {
+    name: 'image-pdf-export',
+    from: [...IMAGE_EXTENSIONS],
+    to: ['pdf'],
+    priority: 0,
+    lossless: false,
+    convert: (file, from) => convertToPdf(file, from),
+  },
+  {
+    name: 'image-ocr',
+    from: [...IMAGE_EXTENSIONS],
+    to: ['txt'],
+    priority: 2,
+    lossless: false,
+    convert: (file, _from, _to, context) => performOcr(file, false, context.onProgress),
+  },
+  {
+    name: 'textual-converter',
+    from: [...TEXT_DATA_EXTENSIONS],
+    to: ['txt', 'md', 'html', 'json', 'csv', 'xml', 'yaml', 'docx', 'xlsx'],
+    priority: 1,
+    lossless: false,
+    canHandle: (from, to) => from !== to,
+    convert: (file, from, to) => convertData(file, from, to),
+  },
+  {
+    name: 'text-pdf-export',
+    from: ['txt', 'md'],
+    to: ['pdf'],
+    priority: 1,
+    lossless: false,
+    convert: (file, from) => convertToPdf(file, from),
+  },
+];
+
+async function executeConversionRoute(
+  file: File,
+  route: ReturnType<typeof planConversionRoutes>[number],
+  options?: { useOcr?: boolean; onProgress?: (p: number) => void },
+) {
+  const baseName = getBaseName(file.name);
+  let currentFile = file;
+
+  for (let index = 0; index < route.steps.length; index++) {
+    const step = route.steps[index];
+    const stepSpan = 90 / route.steps.length;
+    const stepProgressStart = 5 + index * stepSpan;
+    const stepProgressEnd = stepProgressStart + stepSpan;
+    const context: ConversionExecutionContext = {
+      useOcr: options?.useOcr,
+      onProgress: options?.onProgress
+        ? (progress) => {
+            const normalized = Math.min(Math.max(progress, 0), 100);
+            const overall = stepProgressStart + ((stepProgressEnd - stepProgressStart) * normalized) / 100;
+            options.onProgress?.(Math.round(overall));
+          }
+        : undefined,
+    };
+    const blob = await step.handler.convert(currentFile, step.from, step.to, context);
+    currentFile = new File([blob], `${baseName}.${step.to}`, { type: blob.type || currentFile.type });
+  }
+
+  return currentFile;
+}
+
 export async function convertFile(file: File, toExt: string, options?: { useOcr?: boolean, onProgress?: (p: number) => void }): Promise<{ blob: Blob, filename: string }> {
   try {
     const fromExt = getExtension(file.name);
@@ -1058,36 +1241,40 @@ export async function convertFile(file: File, toExt: string, options?: { useOcr?
     
     // Handle OCR specific extension
     const isOcr = toExt === 'txt (OCR)';
-    const actualToExt = isOcr ? 'txt' : toExt;
+    const actualToExt = normalizeExtension(isOcr ? 'txt' : toExt);
     const newFilename = `${baseName}.${actualToExt}`;
 
-    let resultBlob: Blob;
+    const routes = planConversionRoutes(
+      CONVERSION_HANDLERS,
+      FORMAT_CATEGORIES,
+      fromExt,
+      actualToExt,
+      { useOcr: options?.useOcr || isOcr },
+      { limit: 5, maxDepth: actualToExt === 'docx' ? 4 : 3 },
+    );
 
-    if (isOcr) {
-      resultBlob = await performOcr(file, fromExt === 'pdf', onProgress);
-    } else if (fromExt === 'pdf' && toExt === 'txt') {
-      if (options?.useOcr) {
-        resultBlob = await performOcr(file, true, onProgress);
-      } else {
-        resultBlob = await extractPdfText(file, onProgress);
+    if (routes.length === 0) {
+      throw new Error(`No supported conversion path found for ${fromExt} to ${actualToExt}.`);
+    }
+
+    let resultBlob: Blob | null = null;
+    const routeErrors: string[] = [];
+
+    for (const route of routes) {
+      try {
+        const outputFile = await executeConversionRoute(file, route, {
+          useOcr: options?.useOcr || isOcr,
+          onProgress,
+        });
+        resultBlob = outputFile;
+        break;
+      } catch (routeError) {
+        routeErrors.push(routeError instanceof Error ? routeError.message : 'Unknown route failure');
       }
-    } else if (fromExt === 'pdf' && toExt === 'docx') {
-      resultBlob = await convertPdfToDocx(file, options?.useOcr, onProgress);
-    } else if (fromExt === 'docx' && toExt === 'pdf') {
-      resultBlob = await convertDocxToPdf(file, onProgress);
-    } else if (toExt === 'pdf') {
-      resultBlob = await convertToPdf(file, fromExt);
-    } else if (fromExt === 'docx') {
-      resultBlob = await convertDocx(file, toExt);
-    } else if (fromExt === 'xlsx') {
-      resultBlob = await convertSpreadsheet(file, fromExt, toExt);
-    } else {
-      const imageExts = ['png', 'jpg', 'jpeg', 'webp', 'bmp', 'gif', 'svg', 'ico'];
-      if (imageExts.includes(fromExt) && imageExts.includes(toExt)) {
-        resultBlob = await convertImage(file, toExt);
-      } else {
-        resultBlob = await convertData(file, fromExt, toExt);
-      }
+    }
+
+    if (!resultBlob) {
+      throw new Error(routeErrors[0] || `Failed to convert ${fromExt} to ${actualToExt}.`);
     }
 
     if (onProgress) onProgress(100);

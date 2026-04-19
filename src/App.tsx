@@ -21,6 +21,9 @@ import {
   Moon,
   Shield,
   WandSparkles,
+  Gauge,
+  ScanLine,
+  CloudOff,
 } from 'lucide-react';
 import { cn } from './lib/utils';
 import { SUPPORTED_FORMATS, getExtension, convertFile, convertPdfToDocxWithService, requiresHighFidelityServer, zipFiles, type ConversionMode } from './lib/converters';
@@ -236,6 +239,20 @@ const getCategoryExtensions = (catId: string) => {
       return [];
   }
 };
+
+const STUDIO_TOOLS = [
+  { title: 'Layout-aware PDF lane', description: 'Keeps PDF, DOCX, text, and OCR flows close together so the main task is never buried.', icon: FileText },
+  { title: 'Image and icon remixes', description: 'Switch between PNG, JPG, WEBP, BMP, GIF, SVG, and ICO without leaving the workspace.', icon: ImageIcon },
+  { title: 'Structured data transforms', description: 'Move between JSON, CSV, XLSX, XML, and YAML with a cleaner queue and safer batch handling.', icon: Database },
+  { title: 'Preview before export', description: 'Open the result view before downloading so the final file feels checked, not guessed.', icon: Eye },
+];
+
+const PROMISE_POINTS = [
+  { label: 'On-device flow', value: 'Private by default', icon: Shield },
+  { label: 'Performance', value: 'Batch ready', icon: Gauge },
+  { label: 'Scanned docs', value: 'OCR assist', icon: ScanLine },
+  { label: 'Offline-friendly', value: 'No constant upload loop', icon: CloudOff },
+];
 
 export type FileItem = {
   id: string;
@@ -550,12 +567,17 @@ export default function App() {
                 <Layers className="h-6 w-6" />
               </div>
               <div>
-                <p className="text-[0.68rem] font-bold uppercase tracking-[0.36em] text-[var(--text-soft)]">Local conversion studio</p>
+                <p className="text-[0.68rem] font-bold uppercase tracking-[0.36em] text-[var(--text-soft)]">Browser-first conversion suite</p>
                 <h1 className="font-display text-2xl font-extrabold tracking-[0.08em] text-white sm:text-3xl">FileFlux</h1>
               </div>
             </div>
 
-            <div className="flex flex-wrap items-center gap-3">
+            <div className="flex flex-wrap items-center gap-3 lg:justify-end">
+              <nav className="hidden items-center gap-2 lg:flex">
+                <a href="#workspace" className="anime-nav-link">Workspace</a>
+                <a href="#tool-grid" className="anime-nav-link">Formats</a>
+                <a href="#promises" className="anime-nav-link">Flow</a>
+              </nav>
               <div className="anime-chip">
                 <Shield className="h-4 w-4" />
                 Private on device
@@ -589,7 +611,70 @@ export default function App() {
           </AnimatePresence>
         </header>
 
-        <main className="grid flex-1 gap-8 xl:grid-cols-[320px_minmax(0,1fr)]">
+        <main className="flex flex-1 flex-col gap-8">
+          <section className="anime-panel anime-hero-shell relative overflow-hidden rounded-[2.5rem] px-6 py-8 sm:px-8 lg:px-10 lg:py-10">
+            <div className="anime-panel-glow" />
+            <div className="anime-sea-ribbon" />
+            <div className="relative z-10 grid gap-8 xl:grid-cols-[minmax(0,1.3fr)_360px] xl:items-end">
+              <div className="max-w-4xl">
+                <p className="text-[0.74rem] font-bold uppercase tracking-[0.38em] text-[var(--text-soft)]">All your format switches in one calm stage</p>
+                <h2 className="mt-3 font-display text-4xl font-extrabold leading-[1.02] text-white sm:text-5xl xl:text-[4.5rem]">
+                  A slick conversion studio with ocean-night anime energy.
+                </h2>
+                <p className="mt-5 max-w-2xl text-base leading-8 text-[var(--text-muted)] sm:text-lg">
+                  Drop your files, pick the output, and move through the queue with spacious controls, high-clarity previews, and stronger PDF handling without losing the local-first feel.
+                </p>
+                <div className="mt-6 flex flex-wrap gap-3">
+                  <div className="anime-chip">
+                    <Shield className="h-4 w-4" />
+                    Private by default
+                  </div>
+                  <div className="anime-chip">
+                    <Gauge className="h-4 w-4" />
+                    Faster batch rhythm
+                  </div>
+                  <div className="anime-chip">
+                    <ScanLine className="h-4 w-4" />
+                    OCR for hard scans
+                  </div>
+                </div>
+              </div>
+
+              <div className="anime-hero-card">
+                <p className="text-[0.68rem] font-bold uppercase tracking-[0.28em] text-[var(--text-soft)]">Live snapshot</p>
+                <div className="mt-4 space-y-4">
+                  <div className="flex items-center justify-between rounded-[1.35rem] border border-white/10 bg-white/6 px-4 py-3">
+                    <span className="text-sm text-[var(--text-muted)]">Queue</span>
+                    <strong className="font-display text-xl text-white">{files.length}</strong>
+                  </div>
+                  <div className="flex items-center justify-between rounded-[1.35rem] border border-white/10 bg-white/6 px-4 py-3">
+                    <span className="text-sm text-[var(--text-muted)]">Ready</span>
+                    <strong className="font-display text-xl text-white">{successfulCount}</strong>
+                  </div>
+                  <div className="flex items-center justify-between rounded-[1.35rem] border border-white/10 bg-white/6 px-4 py-3">
+                    <span className="text-sm text-[var(--text-muted)]">Batch weight</span>
+                    <strong className="font-display text-lg text-white">{formatBytes(totalQueuedBytes)}</strong>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </section>
+
+          <section className="anime-trust-strip grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+            {PROMISE_POINTS.map((point) => (
+              <div key={point.label} className="anime-focus-card flex items-start gap-4">
+                <div className="anime-mini-icon">
+                  <point.icon className="h-5 w-5 text-cyan-100" />
+                </div>
+                <div>
+                  <span className="anime-focus-label">{point.label}</span>
+                  <strong className="anime-focus-value">{point.value}</strong>
+                </div>
+              </div>
+            ))}
+          </section>
+
+          <div id="workspace" className="grid gap-8 xl:grid-cols-[320px_minmax(0,1fr)]">
           <aside className="order-2 space-y-6 xl:order-1">
             <section className="anime-panel rounded-[2rem] p-5">
               <div className="mb-4 flex items-center justify-between">
@@ -1049,6 +1134,78 @@ export default function App() {
                   )}
                 </AnimatePresence>
               </ErrorBoundary>
+            </div>
+          </section>
+          </div>
+
+          <section id="tool-grid" className="anime-panel rounded-[2.4rem] p-6 sm:p-8">
+            <div className="mb-6 flex flex-col gap-3 lg:flex-row lg:items-end lg:justify-between">
+              <div>
+                <p className="text-[0.72rem] font-bold uppercase tracking-[0.35em] text-[var(--text-soft)]">Format lanes</p>
+                <h3 className="font-display text-3xl font-extrabold text-white">Built to feel clearer the moment you land.</h3>
+              </div>
+              <p className="max-w-2xl text-sm leading-7 text-[var(--text-muted)]">
+                The page now leads with one big stage, a lighter trust rail, and cleaner supporting cards so the converter feels more like a polished product and less like a stacked utility panel.
+              </p>
+            </div>
+            <div className="anime-tools-grid">
+              {STUDIO_TOOLS.map((tool) => (
+                <div key={tool.title} className="anime-tool-card">
+                  <div className="anime-mini-icon">
+                    <tool.icon className="h-5 w-5 text-cyan-100" />
+                  </div>
+                  <h4 className="mt-4 font-display text-xl font-bold text-white">{tool.title}</h4>
+                  <p className="mt-2 text-sm leading-7 text-[var(--text-muted)]">{tool.description}</p>
+                </div>
+              ))}
+            </div>
+          </section>
+
+          <section id="promises" className="grid gap-6 lg:grid-cols-[minmax(0,1.15fr)_minmax(320px,0.85fr)]">
+            <div className="anime-panel rounded-[2.2rem] p-6 sm:p-8">
+              <p className="text-[0.72rem] font-bold uppercase tracking-[0.35em] text-[var(--text-soft)]">Why it feels better</p>
+              <h3 className="mt-3 font-display text-3xl font-extrabold text-white">More room, less friction, stronger focus.</h3>
+              <div className="mt-6 grid gap-4 md:grid-cols-3">
+                <div className="anime-step-card">
+                  <span className="anime-step-number">1</span>
+                  <div>
+                    <div className="font-display text-base font-bold text-white">Cleaner entry</div>
+                    <p className="text-sm text-[var(--text-muted)]">The first screen guides you straight into the workflow instead of making you decode the layout.</p>
+                  </div>
+                </div>
+                <div className="anime-step-card">
+                  <span className="anime-step-number">2</span>
+                  <div>
+                    <div className="font-display text-base font-bold text-white">Softer density</div>
+                    <p className="text-sm text-[var(--text-muted)]">Important controls stay visible, while supportive information sits in calmer secondary cards.</p>
+                  </div>
+                </div>
+                <div className="anime-step-card">
+                  <span className="anime-step-number">3</span>
+                  <div>
+                    <div className="font-display text-base font-bold text-white">Anime-coded finish</div>
+                    <p className="text-sm text-[var(--text-muted)]">Blue atmosphere, glow accents, and sharp typography create a more intentional visual identity.</p>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <div className="anime-panel rounded-[2.2rem] p-6 sm:p-8">
+              <p className="text-[0.72rem] font-bold uppercase tracking-[0.35em] text-[var(--text-soft)]">Trust note</p>
+              <h3 className="mt-3 font-display text-2xl font-extrabold text-white">Your queue stays readable even when the batch grows.</h3>
+              <div className="mt-6 space-y-4 text-sm leading-7 text-[var(--text-muted)]">
+                <p>The layout keeps the upload stage, queue actions, and preview flow in one path, while PDF-specific controls only appear when they matter.</p>
+                <p>That gives the app a more production-ready front page without compromising the conversion logic we already improved underneath.</p>
+              </div>
+              <div className="mt-6 flex flex-wrap gap-3">
+                <button onClick={() => window.location.hash = '#workspace'} className="anime-primary-button lg:w-auto">
+                  Return to workspace
+                </button>
+                <button onClick={() => setShowAbout(true)} className="anime-cta-secondary">
+                  <HelpCircle className="h-4 w-4" />
+                  Learn more
+                </button>
+              </div>
             </div>
           </section>
         </main>
