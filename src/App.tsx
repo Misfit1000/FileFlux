@@ -18,9 +18,10 @@ import {
   RotateCcw,
   Shield,
   WandSparkles,
-  Gauge,
-  ScanLine,
-  CloudOff,
+  LayoutGrid,
+  Wrench,
+  Home,
+  ArrowRight,
 } from 'lucide-react';
 import { cn } from './lib/utils';
 import { SUPPORTED_FORMATS, getExtension, convertFile, zipFiles } from './lib/converters';
@@ -238,20 +239,6 @@ const getCategoryExtensions = (catId: string) => {
   }
 };
 
-const STUDIO_TOOLS = [
-  { title: 'Layout-aware PDF lane', description: 'Keeps PDF, DOCX, text, and OCR flows close together so the main task is never buried.', icon: FileText },
-  { title: 'Image and icon remixes', description: 'Switch between PNG, JPG, WEBP, BMP, GIF, SVG, and ICO without leaving the workspace.', icon: ImageIcon },
-  { title: 'Structured data transforms', description: 'Move between JSON, CSV, XLSX, XML, and YAML with a cleaner queue and safer batch handling.', icon: Database },
-  { title: 'Preview before export', description: 'Open the result view before downloading so the final file feels checked, not guessed.', icon: Eye },
-];
-
-const PROMISE_POINTS = [
-  { label: 'On-device flow', value: 'Private by default', icon: Shield },
-  { label: 'Performance', value: 'Batch ready', icon: Gauge },
-  { label: 'Scanned docs', value: 'OCR assist', icon: ScanLine },
-  { label: 'Offline-friendly', value: 'No constant upload loop', icon: CloudOff },
-];
-
 export type FileItem = {
   id: string;
   file: File;
@@ -265,6 +252,15 @@ export type FileItem = {
 };
 
 export default function App() {
+  const getRouteFromHash = () => {
+    const hash = window.location.hash.replace('#', '').toLowerCase();
+    if (hash === 'convert' || hash === 'toolbox') {
+      return hash as 'convert' | 'toolbox';
+    }
+    return 'home' as const;
+  };
+
+  const [activePage, setActivePage] = useState<'home' | 'convert' | 'toolbox'>(getRouteFromHash);
   const [activeCategory, setActiveCategory] = useState('universal');
   const [files, setFiles] = useState<FileItem[]>([]);
   const [error, setError] = useState<string | null>(null);
@@ -276,6 +272,15 @@ export default function App() {
   useEffect(() => {
     filesRef.current = files;
   }, [files]);
+
+  useEffect(() => {
+    const handleHashChange = () => {
+      setActivePage(getRouteFromHash());
+    };
+
+    window.addEventListener('hashchange', handleHashChange);
+    return () => window.removeEventListener('hashchange', handleHashChange);
+  }, []);
 
   useEffect(() => {
     return () => {
@@ -523,6 +528,11 @@ export default function App() {
   const successfulCount = useMemo(() => files.filter((file) => file.status === 'success').length, [files]);
   const totalQueuedBytes = useMemo(() => files.reduce((sum, file) => sum + file.file.size, 0), [files]);
 
+  const navigateTo = (page: 'home' | 'convert' | 'toolbox') => {
+    window.location.hash = page === 'home' ? '' : page;
+    setActivePage(page);
+  };
+
   return (
     <div className="anime-shell min-h-screen overflow-hidden text-[var(--text-primary)]">
       <div className="anime-bg pointer-events-none">
@@ -551,13 +561,37 @@ export default function App() {
             </div>
 
             <div className="flex flex-wrap items-center gap-3 lg:justify-end">
+              <button
+                type="button"
+                onClick={() => navigateTo('home')}
+                className={cn('anime-nav-button', activePage === 'home' && 'anime-nav-button-active')}
+              >
+                <Home className="h-4 w-4" />
+                Home
+              </button>
+              <button
+                type="button"
+                onClick={() => navigateTo('convert')}
+                className={cn('anime-nav-button', activePage === 'convert' && 'anime-nav-button-active')}
+              >
+                <LayoutGrid className="h-4 w-4" />
+                Convert
+              </button>
+              <button
+                type="button"
+                onClick={() => navigateTo('toolbox')}
+                className={cn('anime-nav-button', activePage === 'toolbox' && 'anime-nav-button-active')}
+              >
+                <Wrench className="h-4 w-4" />
+                Toolbox
+              </button>
               <div className="anime-chip">
                 <Shield className="h-4 w-4" />
                 Private on device
               </div>
               <div className="anime-chip">
                 <WandSparkles className="h-4 w-4" />
-                Easy batch flow
+                Browser-only tools
               </div>
             </div>
           </div>
@@ -574,81 +608,71 @@ export default function App() {
         </motion.header>
 
         <main className="flex flex-1 flex-col gap-8">
-          <motion.section
-            initial={{ opacity: 0, y: 22 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.5, delay: 0.05, ease: 'easeOut' }}
-            className="anime-panel anime-hero-shell relative overflow-hidden rounded-[2.5rem] px-6 py-8 sm:px-8 lg:px-10 lg:py-10"
-          >
-            <div className="anime-panel-glow" />
-            <div className="anime-sea-ribbon" />
-            <div className="relative z-10 grid gap-8 xl:grid-cols-[minmax(0,1.3fr)_360px] xl:items-end">
-              <div className="max-w-4xl">
-                <p className="text-[0.74rem] font-bold uppercase tracking-[0.38em] text-[var(--text-soft)]">All your format switches in one calm stage</p>
-                <h2 className="mt-3 font-display text-4xl font-extrabold leading-[1.02] text-white sm:text-5xl xl:text-[4.5rem]">
-                  A slick conversion studio with ocean-night anime energy.
-                </h2>
-                <p className="mt-5 max-w-2xl text-base leading-8 text-[var(--text-muted)] sm:text-lg">
-                  Drop your files, pick the output, and move through the queue with spacious controls, high-clarity previews, and stronger PDF handling without losing the local-first feel.
-                </p>
-                <div className="mt-6 flex flex-wrap gap-3">
-                  <div className="anime-chip">
-                    <Shield className="h-4 w-4" />
-                    Private by default
+          {activePage === 'home' ? (
+            <motion.section
+              initial={{ opacity: 0, y: 18 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.4, delay: 0.05, ease: 'easeOut' }}
+              className="space-y-8"
+            >
+              <section className="anime-panel rounded-[2.2rem] p-6 sm:p-8 lg:p-10">
+                <div className="grid gap-8 lg:grid-cols-[minmax(0,1.2fr)_360px] lg:items-end">
+                  <div className="max-w-3xl">
+                    <p className="text-[0.72rem] font-bold uppercase tracking-[0.34em] text-[var(--text-soft)]">Simple browser workspace</p>
+                    <h2 className="mt-2 font-display text-3xl font-extrabold text-white sm:text-4xl lg:text-5xl">Clear pages for conversion and browser tools.</h2>
+                    <p className="mt-4 text-sm leading-7 text-[var(--text-muted)] sm:text-base">
+                      FileFlux is now split into separate pages so the UI stays focused. Go to the converter for file work, or open the toolbox for quick text, web, and developer utilities.
+                    </p>
                   </div>
-                  <div className="anime-chip">
-                    <Gauge className="h-4 w-4" />
-                    Faster batch rhythm
-                  </div>
-                  <div className="anime-chip">
-                    <ScanLine className="h-4 w-4" />
-                    OCR for hard scans
+                  <div className="grid gap-3 sm:grid-cols-3 lg:grid-cols-1">
+                    <div className="anime-stat-card">
+                      <span className="anime-stat-label">Queue</span>
+                      <strong className="anime-stat-value">{files.length}</strong>
+                    </div>
+                    <div className="anime-stat-card">
+                      <span className="anime-stat-label">Ready</span>
+                      <strong className="anime-stat-value">{successfulCount}</strong>
+                    </div>
+                    <div className="anime-stat-card">
+                      <span className="anime-stat-label">Batch</span>
+                      <strong className="text-lg font-display text-white">{formatBytes(totalQueuedBytes)}</strong>
+                    </div>
                   </div>
                 </div>
-              </div>
+              </section>
 
-              <div className="anime-hero-card">
-                <p className="text-[0.68rem] font-bold uppercase tracking-[0.28em] text-[var(--text-soft)]">Live snapshot</p>
-                <div className="mt-4 space-y-4">
-                  <div className="flex items-center justify-between rounded-[1.35rem] border border-white/10 bg-white/6 px-4 py-3">
-                    <span className="text-sm text-[var(--text-muted)]">Queue</span>
-                    <strong className="font-display text-xl text-white">{files.length}</strong>
+              <section className="grid gap-6 lg:grid-cols-2">
+                <button type="button" onClick={() => navigateTo('convert')} className="anime-page-card text-left">
+                  <div className="anime-mini-icon">
+                    <LayoutGrid className="h-5 w-5 text-cyan-100" />
                   </div>
-                  <div className="flex items-center justify-between rounded-[1.35rem] border border-white/10 bg-white/6 px-4 py-3">
-                    <span className="text-sm text-[var(--text-muted)]">Ready</span>
-                    <strong className="font-display text-xl text-white">{successfulCount}</strong>
+                  <h3 className="mt-5 font-display text-2xl font-bold text-white">Convert Files</h3>
+                  <p className="mt-2 text-sm leading-7 text-[var(--text-muted)]">
+                    Add files, choose the output format, preview results, and download single files or a zip batch.
+                  </p>
+                  <div className="mt-5 flex items-center gap-2 text-sm font-semibold text-cyan-100">
+                    Open converter
+                    <ArrowRight className="h-4 w-4" />
                   </div>
-                  <div className="flex items-center justify-between rounded-[1.35rem] border border-white/10 bg-white/6 px-4 py-3">
-                    <span className="text-sm text-[var(--text-muted)]">Batch weight</span>
-                    <strong className="font-display text-lg text-white">{formatBytes(totalQueuedBytes)}</strong>
-                  </div>
-                </div>
-              </div>
-            </div>
-          </motion.section>
+                </button>
 
-          <section className="anime-trust-strip grid gap-4 md:grid-cols-2 xl:grid-cols-4">
-            {PROMISE_POINTS.map((point) => (
-              <motion.div
-                key={point.label}
-                initial={{ opacity: 0, y: 20 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ duration: 0.35, delay: 0.08 }}
-                whileHover={{ y: -4, scale: 1.01 }}
-                className="anime-focus-card flex items-start gap-4"
-              >
-                <div className="anime-mini-icon">
-                  <point.icon className="h-5 w-5 text-cyan-100" />
-                </div>
-                <div>
-                  <span className="anime-focus-label">{point.label}</span>
-                  <strong className="anime-focus-value">{point.value}</strong>
-                </div>
-              </motion.div>
-            ))}
-          </section>
-
-          <div id="workspace" className="grid gap-8 xl:grid-cols-[320px_minmax(0,1fr)]">
+                <button type="button" onClick={() => navigateTo('toolbox')} className="anime-page-card text-left">
+                  <div className="anime-mini-icon">
+                    <Wrench className="h-5 w-5 text-cyan-100" />
+                  </div>
+                  <h3 className="mt-5 font-display text-2xl font-bold text-white">Open Toolbox</h3>
+                  <p className="mt-2 text-sm leading-7 text-[var(--text-muted)]">
+                    Use browser-only utilities like JSON formatting, regex testing, Markdown preview, timestamps, JWT decode, and more.
+                  </p>
+                  <div className="mt-5 flex items-center gap-2 text-sm font-semibold text-cyan-100">
+                    Open toolbox
+                    <ArrowRight className="h-4 w-4" />
+                  </div>
+                </button>
+              </section>
+            </motion.section>
+          ) : activePage === 'convert' ? (
+          <div id="workspace" className="grid gap-8 xl:grid-cols-[300px_minmax(0,1fr)]">
           <aside className="order-2 space-y-6 xl:order-1">
             <motion.section
               initial={{ opacity: 0, x: -16 }}
@@ -659,7 +683,7 @@ export default function App() {
               <div className="mb-4 flex items-center justify-between">
                 <div>
                   <p className="text-[0.68rem] font-bold uppercase tracking-[0.3em] text-[var(--text-soft)]">Choose mode</p>
-                  <h2 className="font-display text-xl font-bold text-white">Conversion paths</h2>
+                  <h2 className="font-display text-xl font-bold text-white">File types</h2>
                 </div>
                 <Sparkles className="h-5 w-5 text-fuchsia-200" />
               </div>
@@ -693,8 +717,8 @@ export default function App() {
             >
               <div className="mb-4 flex items-center justify-between">
                 <div>
-                  <p className="text-[0.68rem] font-bold uppercase tracking-[0.3em] text-[var(--text-soft)]">Mission control</p>
-                  <h2 className="font-display text-xl font-bold text-white">Progress and guide</h2>
+                  <p className="text-[0.68rem] font-bold uppercase tracking-[0.3em] text-[var(--text-soft)]">Queue summary</p>
+                  <h2 className="font-display text-xl font-bold text-white">Status</h2>
                 </div>
                 <Shield className="h-5 w-5 text-cyan-100" />
               </div>
@@ -719,22 +743,22 @@ export default function App() {
                 <div className="anime-step-card">
                   <span className="anime-step-number">1</span>
                   <div>
-                    <div className="font-display text-base font-bold text-white">Choose a mode</div>
-                    <p className="text-sm text-[var(--text-muted)]">Pick Universal, Images, Documents, or Data before you add files.</p>
+                    <div className="font-display text-base font-bold text-white">Add files</div>
+                    <p className="text-sm text-[var(--text-muted)]">Choose a file group, then drag files in or tap to browse.</p>
                   </div>
                 </div>
                 <div className="anime-step-card">
                   <span className="anime-step-number">2</span>
                   <div>
-                    <div className="font-display text-base font-bold text-white">Set the output</div>
-                    <p className="text-sm text-[var(--text-muted)]">Each file keeps its own target format, so mixed batches are easier to manage.</p>
+                    <div className="font-display text-base font-bold text-white">Pick output</div>
+                    <p className="text-sm text-[var(--text-muted)]">Each file can use its own format so mixed batches stay easy to manage.</p>
                   </div>
                 </div>
                 <div className="anime-step-card">
                   <span className="anime-step-number">3</span>
                   <div>
-                    <div className="font-display text-base font-bold text-white">Preview before download</div>
-                    <p className="text-sm text-[var(--text-muted)]">Open the preview panel when accuracy matters, especially for PDFs and OCR output.</p>
+                    <div className="font-display text-base font-bold text-white">Preview and download</div>
+                    <p className="text-sm text-[var(--text-muted)]">Check the result, then download one file or the whole batch as a zip.</p>
                   </div>
                 </div>
               </div>
@@ -747,68 +771,28 @@ export default function App() {
             transition={{ duration: 0.45, delay: 0.1 }}
             className="anime-panel relative order-1 overflow-hidden rounded-[2.4rem] xl:order-2"
           >
-            <div className="anime-panel-glow" />
-            <div className="anime-sea-ribbon" />
             <div className="relative flex h-full flex-col p-5 sm:p-7 lg:p-10">
-              <div className="mb-8 grid gap-6 2xl:grid-cols-[minmax(0,1.4fr)_minmax(280px,0.8fr)] 2xl:items-end">
+              <div className="mb-6 flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
                 <div className="max-w-3xl">
-                  <p className="text-[0.72rem] font-bold uppercase tracking-[0.35em] text-[var(--text-soft)]">Anime-inspired interface</p>
-                  <h2 className="font-display text-4xl font-extrabold leading-[1.05] text-white sm:text-5xl xl:text-[3.6rem]">
-                    Slick file conversion with a calm ocean-sky stage.
-                  </h2>
-                  <p className="mt-4 max-w-2xl text-base leading-8 text-[var(--text-muted)] sm:text-lg">
-                    Pick a mode, drop in files, choose the output, and preview every result in one responsive workspace built to feel sharp on both desktop and mobile.
+                  <p className="text-[0.7rem] font-bold uppercase tracking-[0.32em] text-[var(--text-soft)]">Converter</p>
+                  <h2 className="font-display text-3xl font-extrabold text-white sm:text-4xl">Convert files in a simple step-by-step workspace.</h2>
+                  <p className="mt-3 text-sm leading-7 text-[var(--text-muted)] sm:text-base">
+                    Select the file type, add files, choose the output format, and download results from one place.
                   </p>
-                  <div className="mt-6 flex flex-wrap gap-3">
-                    <div className="anime-chip">
-                      <Shield className="h-4 w-4" />
-                      Local-first workflow
-                    </div>
-                    <div className="anime-chip">
-                      <WandSparkles className="h-4 w-4" />
-                      Anime-coded visuals
-                    </div>
-                    <div className="anime-chip">
-                      <Sparkles className="h-4 w-4" />
-                      Preview before download
-                    </div>
-                  </div>
                 </div>
-                <div className="anime-hero-card">
-                  <p className="text-[0.68rem] font-bold uppercase tracking-[0.28em] text-[var(--text-soft)]">Current mode</p>
-                  <div className="mt-3 flex items-center gap-4">
+                <div className="rounded-[1.3rem] border border-white/10 bg-white/5 px-4 py-3">
+                  <p className="text-[0.68rem] font-bold uppercase tracking-[0.24em] text-[var(--text-soft)]">Current mode</p>
+                  <div className="mt-2 flex items-center gap-3">
                     <div className={cn('anime-category-icon bg-gradient-to-br', activeCatData.accent)}>
-                      <activeCatData.icon className={cn('h-6 w-6', activeCatData.color)} />
+                      <activeCatData.icon className={cn('h-5 w-5', activeCatData.color)} />
                     </div>
                     <div>
-                      <div className="font-display text-2xl font-bold text-white">{activeCatData.label}</div>
+                      <div className="font-display text-lg font-bold text-white">{activeCatData.label}</div>
                       <div className="text-sm text-[var(--text-muted)]">{activeCatData.description}</div>
                     </div>
                   </div>
-                  <div className="anime-hero-pills mt-5">
-                    {getFormatPills(activeCategory).map((format) => (
-                      <span key={format} className="anime-pill">
-                        {format}
-                      </span>
-                    ))}
-                  </div>
                 </div>
               </div>
-
-                <div className="mb-8 grid gap-4 md:grid-cols-3">
-                  <div className="anime-focus-card">
-                    <span className="anime-focus-label">Local-first</span>
-                    <strong className="anime-focus-value">No account wall</strong>
-                  </div>
-                <div className="anime-focus-card">
-                  <span className="anime-focus-label">PDF to DOCX</span>
-                  <strong className="anime-focus-value">Better layout recovery</strong>
-                </div>
-                  <div className="anime-focus-card">
-                    <span className="anime-focus-label">Scanned pages</span>
-                    <strong className="anime-focus-value">OCR ready</strong>
-                  </div>
-                </div>
 
               <div className="mb-6 rounded-[1.4rem] border border-white/10 bg-white/6 p-4 sm:p-5">
                 <div className="flex flex-col gap-2">
@@ -1108,93 +1092,15 @@ export default function App() {
             </div>
           </motion.section>
           </div>
-
-          <motion.section
-            id="tool-grid"
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.45, delay: 0.12 }}
-            className="anime-panel rounded-[2.4rem] p-6 sm:p-8"
-          >
-            <div className="mb-6 flex flex-col gap-3 lg:flex-row lg:items-end lg:justify-between">
-              <div>
-                <p className="text-[0.72rem] font-bold uppercase tracking-[0.35em] text-[var(--text-soft)]">Format lanes</p>
-                <h3 className="font-display text-3xl font-extrabold text-white">Everything important stays close to the main workspace.</h3>
-              </div>
-              <p className="max-w-2xl text-sm leading-7 text-[var(--text-muted)]">
-                These cards explain what the app handles, but the core actions remain simple: add files, choose the format, convert, preview, and download.
-              </p>
-            </div>
-            <div className="anime-tools-grid">
-              {STUDIO_TOOLS.map((tool) => (
-                <motion.div
-                  key={tool.title}
-                  initial={{ opacity: 0, y: 16 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  transition={{ duration: 0.35, delay: 0.08 }}
-                  whileHover={{ y: -4, scale: 1.01 }}
-                  className="anime-tool-card"
-                >
-                  <div className="anime-mini-icon">
-                    <tool.icon className="h-5 w-5 text-cyan-100" />
-                  </div>
-                  <h4 className="mt-4 font-display text-xl font-bold text-white">{tool.title}</h4>
-                  <p className="mt-2 text-sm leading-7 text-[var(--text-muted)]">{tool.description}</p>
-                </motion.div>
-              ))}
-            </div>
-          </motion.section>
-
-          <section id="promises" className="grid gap-6 lg:grid-cols-[minmax(0,1.15fr)_minmax(320px,0.85fr)]">
-            <motion.div
-              initial={{ opacity: 0, y: 20 }}
+          ) : (
+            <motion.section
+              initial={{ opacity: 0, y: 18 }}
               animate={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.4, delay: 0.16 }}
-              className="anime-panel rounded-[2.2rem] p-6 sm:p-8"
+              transition={{ duration: 0.4, ease: 'easeOut' }}
             >
-              <p className="text-[0.72rem] font-bold uppercase tracking-[0.35em] text-[var(--text-soft)]">Why it feels better</p>
-              <h3 className="mt-3 font-display text-3xl font-extrabold text-white">More room, less friction, stronger focus.</h3>
-              <div className="mt-6 grid gap-4 md:grid-cols-3">
-                <div className="anime-step-card">
-                  <span className="anime-step-number">1</span>
-                  <div>
-                    <div className="font-display text-base font-bold text-white">Cleaner entry</div>
-                    <p className="text-sm text-[var(--text-muted)]">The first screen guides you straight into the workflow instead of making you decode the layout.</p>
-                  </div>
-                </div>
-                <div className="anime-step-card">
-                  <span className="anime-step-number">2</span>
-                  <div>
-                    <div className="font-display text-base font-bold text-white">Softer density</div>
-                    <p className="text-sm text-[var(--text-muted)]">Important controls stay visible, while supportive information sits in calmer secondary cards.</p>
-                  </div>
-                </div>
-                <div className="anime-step-card">
-                  <span className="anime-step-number">3</span>
-                  <div>
-                    <div className="font-display text-base font-bold text-white">Anime-coded finish</div>
-                    <p className="text-sm text-[var(--text-muted)]">Blue atmosphere, glow accents, and sharp typography create a more intentional visual identity.</p>
-                  </div>
-                </div>
-              </div>
-            </motion.div>
-
-            <motion.div
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.4, delay: 0.2 }}
-              className="anime-panel rounded-[2.2rem] p-6 sm:p-8"
-            >
-              <p className="text-[0.72rem] font-bold uppercase tracking-[0.35em] text-[var(--text-soft)]">Trust note</p>
-              <h3 className="mt-3 font-display text-2xl font-extrabold text-white">Your queue stays readable even when the batch grows.</h3>
-              <div className="mt-6 space-y-4 text-sm leading-7 text-[var(--text-muted)]">
-                <p>The layout keeps the upload stage, queue actions, and preview flow in one path, while PDF-specific controls only appear when they matter.</p>
-                <p>That gives the app a more production-ready front page without compromising the conversion logic we already improved underneath.</p>
-              </div>
-            </motion.div>
-          </section>
-
-          <BrowserToolbox />
+              <BrowserToolbox />
+            </motion.section>
+          )}
         </main>
       </div>
     </div>
